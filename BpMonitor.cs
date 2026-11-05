@@ -4,7 +4,7 @@
 //  HTTP-сервер (System.Net.HttpListener) + компактный Web UI (index.html)
 //  Погода: open-meteo (без ключа) + GFZ kp.gfz.de (Kp хранится в десятых: 33 = 3.3)
 //  HomeAssistant: опциональный REST-датчики (pressure/temp/humidity/kp)
-//  NN: персональная сеть 13 -> H(tanh) -> H2(tanh) -> 2 (сис/диаст), обучается online
+//  NN: персональная сеть 15 -> H(tanh) -> H2(tanh) -> 2 (сис/диаст), обучается online
 //  Хранилище: data/data.bin — бинарный append-журнал (типизированные поля, пул строк);
 //    data/nn.bin — модель; config.json. Миграция со старых форматов автоматическая
 // ============================================================================
@@ -69,6 +69,8 @@ public class Config{
 	public int AlarmAheadMin=5;// напоминание в трее до будильника
 	public bool Autostart=true;
 	public int NormSys=135,NormDia=85;// "норма": прогноз выше -> popup
+	public string Dob="";// дата рождения пользователя yyyy-MM-dd (фича НН "возраст"); пусто = не указан
+	public string Sex="";// пол: "m"|"f" (фича НН "пол"); пусто = не указан
 	public int PopupCooldownMin=120;// пауза между popup
 	public HaCfg Ha=new HaCfg();
 	public NnCfg Nn=new NnCfg();
@@ -217,7 +219,7 @@ static class App{
 	static double Clamp(double v,double lo,double hi){ return v<lo?lo:(v>hi?hi:v); }
 	public static readonly string[] FeatBase={
 		"час sin","час cos","день sin","день cos","давл. мм","температура","влажность","Kp",
-		"эмоция","шум(кол-во)","сон ч","сон кач","лекарств(кол-во)"
+		"эмоция","шум(кол-во)","сон ч","сон кач","лекарств(кол-во)","возраст","пол"
 	};
 	// полные имена фич: базовые + по 2 на каждое лекарство (активность/окно)
 	public static string[] GetFeatNames(){
@@ -716,6 +718,20 @@ static class App{
 		SaveNn();
 	}
 
+	// пользователь: возраст (на момент измерения) и пол — фичи НН x[13]/x[14]; не указано -> нейтраль 0
+	static double AgeNorm(DateTime at){
+		DateTime d;
+		if(string.IsNullOrWhiteSpace(Cfg.Dob)||!DateTime.TryParse(Cfg.Dob.Trim(),CultureInfo.InvariantCulture,DateTimeStyles.None,out d)) return 0;
+		if(d.Year<1900||d>at) return 0;
+		double age=(at-d).TotalDays/365.25;
+		return Clamp((age-50.0)/40.0,-1.0,1.0);// 50 лет -> 0, 10 -> -1, 90 -> +1
+	}
+	static double SexNorm(){
+		string s=(Cfg.Sex??"").Trim().ToLowerInvariant();
+		if(s=="m"||s=="м"||s=="мужской"||s=="male") return 0.5;
+		if(s=="f"||s=="ж"||s=="женский"||s=="female") return -0.5;
+		return 0;
+	}
 	public static double[] FeatsFor(Measurement m,Dictionary<string,List<DateTime>> intakes=null){
 		if(intakes==null) intakes=MedIntakes();
 		double h=m.T.Hour+m.T.Minute/60.0;
@@ -723,7 +739,7 @@ static class App{
 		double[] x=new double[InDim()];
 		x[0]=Math.Sin(2*Math.PI*h/24); x[1]=Math.Cos(2*Math.PI*h/24);
 		x[2]=Math.Sin(2*Math.PI*dow/7); x[3]=Math.Cos(2*Math.PI*dow/7);
-		x[4]=((double)(m.PressMm??1013f)-1013)/40;
+		x[4]=((double)(m.PressMm??760f)-760)/20;// мм рт.ст.: 760 -> 0, ±20 мм -> ±1
 		x[5]=(double)(m.TempC??15f)/15;
 		x[6]=(double)(m.Hum??60f)/100;
 		x[7]=(double)(m.Kp??33)/90;
@@ -732,6 +748,8 @@ static class App{
 		x[10]=SleepAt(m.T)/10.0;
 		x[11]=(SleepQualityAt(m.T)-5.0)/5.0;// -1..+1 вокруг нейтрали 5
 		x[12]=m.Meds.Count/4.0;
+		x[13]=AgeNorm(m.T);
+		x[14]=SexNorm();
 		for(int k=0;k<Cfg.Meds.Count;k++){// PK-фичи: остаточная активность и нахождение в окне действия
 			(double half,double dur)=MedKtFor(Cfg.Meds[k]);
 			double conc=0,win=0;
@@ -1611,14 +1629,20 @@ static class App{
 			Dictionary<string,object> r=new Dictionary<string,object>{{"Дата",day.Key.ToString("dd.MM.yyyy")}};
 			for(int i=1;i<=maxPerDay;i++){
 				Measurement m=ms.Count>=i?ms[i-1]:null;
-				r["Изм."+i]=m==null?"":$"{m.T:HH:mm} — {m.Sys}/{m.Dia}, п:{m.Pulse}{(m.Meds.Count>0?" ["+string.Join(",",m.Meds)+"]":"")}";
+				r["Изм."+i]=m==null?"":$"{m.T:HH:mm} — {m.Sys}/{m.Dia}, п:{m.Pulse}";
 			}
-			r["Давл. мм (мин–макс)"]=ms.Any(m=>m.PressMm.HasValue)?$"{ms.Min(m=>m.PressMm??0)}–{ms.Max(m=>m.PressMm??0)}":"";
-			r["Темп. °C (мин–макс)"]=ms.Any(m=>m.TempC.HasValue)?$"{ms.Min(m=>m.TempC??0)}–{ms.Max(m=>m.TempC??0)}":"";
+			// приём лекарств: union журнала отметок и лекарств, отмеченных на измерении
+			List<string> takes=new List<string>();
+			foreach(MedTakeEntry mt in D.MedTakes.Where(x=>x.T.Date==day.Key)) takes.Add($"{mt.T:HH:mm} {mt.Med}");
+			foreach(Measurement m in ms) foreach(string md in m.Meds) takes.Add($"{m.T:HH:mm} {md}");
+			r["Приём лекарств"]=string.Join("; ",takes.OrderBy(s=>s).Distinct());
 			r["Kp (макс)"]=ms.Any(m=>m.Kp.HasValue)?((ms.Max(m=>m.Kp??0)/10.0).ToString("0.0",CultureInfo.InvariantCulture)):"";
 			r["Эмоции"]=string.Join("; ",ms.Where(m=>m.EmotionV.HasValue).Select(m=>$"{m.T:HH:mm} {m.EmotionLabel}").Distinct());
 			r["Шум/события"]=string.Join("; ",ms.SelectMany(m=>m.Noise).Distinct());
-			r["Сон"]=ms.Any(m=>m.SleepH.HasValue)?$"{ms.Min(m=>m.SleepH??0)} ч (кач. {ms.Max(m=>m.SleepQ??0)})":"";
+			// сон: из журнала за этот день (бывает и в дни без измерений), иначе снимок с измерений
+			List<SleepEntry> sl=D.S.Where(s=>s.T.Date==day.Key).OrderBy(s=>s.T).ToList();
+			r["Сон"]=sl.Count>0?string.Join("; ",sl.Select(s=>$"{s.Hours:0.#} ч (кач. {s.Quality})"))
+				:(ms.Any(m=>m.SleepH.HasValue)?$"{ms.Min(m=>m.SleepH??0):0.#} ч (кач. {ms.Max(m=>m.SleepQ??0)})":"");
 			rows.Add(r);
 		}
 		return rows;
@@ -2087,6 +2111,7 @@ static class App{
 				case"/api/config":{
 					int oldPort=Cfg.Port;
 					string oldToken=Cfg.Ha!=null?Cfg.Ha.Token:"";
+					string oldDob=Cfg.Dob??"",oldSex=Cfg.Sex??"";
 					// MERGE: обновляются только поля, присутствующие в теле; остальные сохраняются.
 					// Клон + PopulateObject: при ошибке в теле текущий конфиг не трогается.
 					Config nc=JsonConvert.DeserializeObject<Config>(JsonConvert.SerializeObject(Cfg),new JsonSerializerSettings{ObjectCreationHandling=ObjectCreationHandling.Replace});
@@ -2107,6 +2132,7 @@ static class App{
 					Cfg=nc;
 					SaveCfg();
 					EnsureNnDim();// список лекарств мог измениться -> размерность входа
+					if(Cfg.Dob!=oldDob||Cfg.Sex!=oldSex){ Train(); SaveNn(); }// возраст/пол поменялись -> переучить модель на новых значениях фич
 					JsonResp(ctx.Response,new{ok=true,restartRequired=Cfg.Port!=oldPort});
 					return;
 				}
@@ -2262,9 +2288,16 @@ static class App{
 			DateTime t0=new DateTime(2026,8,22,12,0,0);// суббота
 			Measurement m=new Measurement{Id=Guid.NewGuid().ToString("N"),T=t0,Sys=120,Dia=80,Pulse=70};
 			double[] x=FeatsFor(m);
-			if(x.Length!=13) throw new Exception("InDim без лекарств = 13, получили "+x.Length);
+			if(x.Length!=15) throw new Exception("InDim без лекарств = 15, получили "+x.Length);
 			if(Math.Abs(x[8])>1e-9||Math.Abs(x[9])>1e-9||Math.Abs(x[10]-0.75)>1e-6) throw new Exception("нейтрали: эмоция 0, шум 0, сон 7.5ч");
 			if(Math.Abs(x[11])>1e-9) throw new Exception("нейтраль качества сна = 5 -> 0, x[11]="+x[11]);
+			if(Math.Abs(x[13])>1e-9||Math.Abs(x[14])>1e-9) throw new Exception("без dob/пола возраст и пол должны быть нейтральны 0");
+			Cfg.Dob="1980-06-15"; Cfg.Sex="m";
+			x=FeatsFor(m);
+			double ageExp=Clamp(((t0-new DateTime(1980,6,15)).TotalDays/365.25-50.0)/40.0,-1.0,1.0);
+			if(Math.Abs(x[13]-ageExp)>1e-9) throw new Exception("возраст на момент измерения: x[13]="+x[13]+" ждём "+ageExp);
+			if(Math.Abs(x[14]-0.5)>1e-9) throw new Exception("пол m -> 0.5, x[14]="+x[14]);
+			Cfg.Dob=""; Cfg.Sex="";
 			if(Math.Abs(x[0]-Math.Sin(2*Math.PI*12/24))>1e-9) throw new Exception("час sin (12:00)");
 			double dow=((int)t0.DayOfWeek+6)%7;
 			if(Math.Abs(x[2]-Math.Sin(2*Math.PI*dow/7))>1e-9) throw new Exception("день sin");
@@ -2296,14 +2329,14 @@ static class App{
 			Measurement m=new Measurement{Id=Guid.NewGuid().ToString("N"),T=t0,Sys=120,Dia=80,Pulse=70,Meds=new List<string>{"тестмед"}};
 			D.M.Add(m);
 			double[] x=FeatsFor(m);
-			if(x.Length!=15) throw new Exception("InDim с 1 лекарством = 15");
-			if(Math.Abs(x[13]-1.0/3)>1e-6) throw new Exception("приём в момент t: conc=1 -> 1/3, x[13]="+x[13]);
-			if(Math.Abs(x[14]-1.0)>1e-6) throw new Exception("в окне действия -> 1, x[14]="+x[14]);
+			if(x.Length!=17) throw new Exception("InDim с 1 лекарством = 17");
+			if(Math.Abs(x[15]-1.0/3)>1e-6) throw new Exception("приём в момент t: conc=1 -> 1/3, x[15]="+x[15]);
+			if(Math.Abs(x[16]-1.0)>1e-6) throw new Exception("в окне действия -> 1, x[16]="+x[16]);
 			double[] x2=FeatsFor(new Measurement{Id=Guid.NewGuid().ToString("N"),T=t0.AddHours(8),Sys=120,Dia=80});
-			if(Math.Abs(x2[13]-0.5/3)>1e-6) throw new Exception("через T½=8ч: conc=0.5 -> 1/6, x[13]="+x2[13]);
-			if(Math.Abs(x2[14]-(1.0-8.0/12))>1e-6) throw new Exception("окно dur=12ч: win=1-8/12, x[14]="+x2[14]);
+			if(Math.Abs(x2[15]-0.5/3)>1e-6) throw new Exception("через T½=8ч: conc=0.5 -> 1/6, x[15]="+x2[15]);
+			if(Math.Abs(x2[16]-(1.0-8.0/12))>1e-6) throw new Exception("окно dur=12ч: win=1-8/12, x[16]="+x2[16]);
 			double[] x3=FeatsFor(new Measurement{Id=Guid.NewGuid().ToString("N"),T=t0.AddHours(13),Sys=120,Dia=80});
-			if(Math.Abs(x3[14])>1e-9) throw new Exception("за окном действия -> 0");
+			if(Math.Abs(x3[16])>1e-9) throw new Exception("за окном действия -> 0");
 		});
 		check("Validate: holdout-раздел + метрики + значимость",()=>{
 			Cfg=new Config(); Cfg.Meds=new List<string>();
@@ -2401,8 +2434,8 @@ static class App{
 			if(!ints.TryGetValue("тестмед",out ts)||ts.Count!=2) throw new Exception("union: "+(ts==null?0:ts.Count));
 			// at t0+8h: conc = 0.5^(8/8) + 0.5^0 = 1.5 -> x=min(1.5,3)/3 = 0.5 (тестмед удалён из medpk -> дефолт 8/12)
 			double[] x=FeatsFor(new Measurement{Id=Guid.NewGuid().ToString("N"),T=t0.AddHours(8),Sys=120,Dia=80});
-			if(Math.Abs(x[13]-0.5)>1e-6) throw new Exception("PK-фича по двум приёмам: x[13]="+x[13]);
-			if(Math.Abs(x[14]-1.0)>1e-6) throw new Exception("окно действия свежего приёма -> 1, x[14]="+x[14]);
+			if(Math.Abs(x[15]-0.5)>1e-6) throw new Exception("PK-фича по двум приёмам: x[15]="+x[15]);
+			if(Math.Abs(x[16]-1.0)>1e-6) throw new Exception("окно действия свежего приёма -> 1, x[16]="+x[16]);
 		});
 		check("DailyBackup: архив создаётся один раз в сутки",()=>{
 			string bdir=Path.Combine(ExeDir,"backups");

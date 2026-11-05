@@ -32,6 +32,8 @@ section h3{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing
 table{border-collapse:collapse;width:100%;font-size:12.5px}
 th,td{border:1px solid #ddd;padding:3px 6px;text-align:left;vertical-align:top}
 th{background:#f0f0ec;white-space:nowrap}
+.scrollbox{max-height:260px;overflow:auto}
+.scrollbox thead th{position:sticky;top:0;z-index:1}
 tr:nth-child(even) td{background:#fafaf8}
 .grid{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
 .mut{color:#777;font-size:12px}
@@ -143,7 +145,7 @@ canvas{max-width:100%;border:1px solid var(--bd);background:#fff}
         <label>Прим. <input id="e-note" style="width:160px"></label>
         <button class="primary" onclick="addEmo()">Добавить</button>
       </div>
-      <div style="margin-top:6px"><table id="emo-t"><thead><tr><th>Дата/время</th><th>Значение</th><th>Прим.</th><th></th></tr></thead><tbody></tbody></table></div>
+      <div class="scrollbox" style="margin-top:6px"><table id="emo-t"><thead><tr><th>Дата/время</th><th>Значение</th><th>Прим.</th><th></th></tr></thead><tbody></tbody></table></div>
     </section>
     <section>
       <h3>Шум / события</h3>
@@ -154,7 +156,7 @@ canvas{max-width:100%;border:1px solid var(--bd);background:#fff}
         <label>Прим. <input id="n-note" style="width:140px"></label>
         <button class="primary" onclick="addNoise()">Добавить</button>
       </div>
-      <div style="margin-top:6px"><table id="noise-t"><thead><tr><th>Дата/время</th><th>Тип</th><th>Прим.</th><th></th></tr></thead><tbody></tbody></table></div>
+      <div class="scrollbox" style="margin-top:6px"><table id="noise-t"><thead><tr><th>Дата/время</th><th>Тип</th><th>Прим.</th><th></th></tr></thead><tbody></tbody></table></div>
     </section>
     <section>
       <h3>Сон</h3>
@@ -169,7 +171,7 @@ canvas{max-width:100%;border:1px solid var(--bd);background:#fff}
         <span class="mut">Импорт из Mi Band / Mi Fit (CSV): <input type="file" id="s-file" accept=".csv,text/csv"></span>
         <button onclick="importSleep()">Импортировать CSV</button>
       </div>
-      <div style="margin-top:6px"><table id="sleep-t"><thead><tr><th>Дата</th><th>Часы</th><th>Кач.</th><th>Прим.</th><th></th></tr></thead><tbody></tbody></table></div>
+      <div class="scrollbox" style="margin-top:6px"><table id="sleep-t"><thead><tr><th>Дата</th><th>Часы</th><th>Кач.</th><th>Прим.</th><th></th></tr></thead><tbody></tbody></table></div>
     </section>
   </div>
 
@@ -277,6 +279,14 @@ canvas{max-width:100%;border:1px solid var(--bd);background:#fff}
         <label>mp3-файл <input id="c-alarm" style="width:140px"></label>
         <label>Напоминать, мин до <input type="number" id="c-ahead" style="width:60px"></label>
       </div>
+    </section>
+    <section>
+      <h3>Пользователь</h3>
+      <div class="grid">
+        <label>Дата рождения <input type="date" id="c-dob" style="width:140px"></label>
+        <label>Пол <select id="c-sex" style="width:120px"><option value="">не указан</option><option value="m">мужской</option><option value="f">женский</option></select></label>
+      </div>
+      <p class="mut" style="margin:6px 0 0">Модель использует их как признаки «возраст» (на момент каждого измерения) и «пол»; после изменения модель переобучается автоматически.</p>
     </section>
     <section>
       <h3>Норма и оповещение</h3>
@@ -847,9 +857,9 @@ function renderMeds(){
       `<td><button onclick="medTake(${i})" title="отметить фактический приём сейчас">✓ Принять</button></td>`+
       `<td><button onclick="delMd(${i})">✕</button></td></tr>`;
   }).join("")||'<tr><td colspan="6" class="mut">список пуст</td></tr>';
-  const takes=(S.medtakes||[]).slice(0,15);
+  const takes=(S.medtakes||[]);
   $("md-takes").innerHTML=takes.length
-    ?`<table><tbody>`+takes.map(t=>{const d=new Date(t.T);return `<tr><td>${p2(d.getDate())}.${p2(d.getMonth()+1)}.${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}</td><td>${esc(t.Med)}</td><td><button onclick="delMedTake('${esc(t.Id)}')" title="удалить отметку">✕</button></td></tr>`;}).join("")+`</tbody></table>`
+    ?`<div class="scrollbox" style="margin-top:6px"><table><thead><tr><th>Дата/время</th><th>Лекарство</th><th></th></tr></thead><tbody>`+takes.map(t=>{const d=new Date(t.T);return `<tr><td>${p2(d.getDate())}.${p2(d.getMonth()+1)}.${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}</td><td>${esc(t.Med)}</td><td><button onclick="delMedTake('${esc(t.Id)}')" title="удалить отметку">✕</button></td></tr>`;}).join("")+`</tbody></table></div>`
     :'<span class="mut">Отметок пока нет — «✓ Принять» в таблице выше</span>';
   renderDb();
 }
@@ -905,6 +915,7 @@ function fillCfg(){
   $("c-port").value=c.Port;$("c-lat").value=c.Lat;$("c-lon").value=c.Lon;$("c-poll").value=c.PollMin;
   $("c-alarm").value=c.AlarmFile||"";$("c-ahead").value=c.AlarmAheadMin;
   $("c-norms").value=c.NormSys;$("c-normd").value=c.NormDia;$("c-cd").value=c.PopupCooldownMin;
+  $("c-dob").value=c.Dob||"";$("c-sex").value=c.Sex||"";
   $("c-auto").checked=!!S.autostart;
   $("c-ha-url").value=(c.Ha&&c.Ha.Url)||"";
   $("c-ha-tok").value=(c.Ha&&c.Ha.Token)||"";
@@ -926,6 +937,7 @@ function saveCfg(){
   c.Port=+$("c-port").value;c.Lat=+$("c-lat").value;c.Lon=+$("c-lon").value;c.PollMin=+$("c-poll").value;
   c.AlarmFile=$("c-alarm").value.trim();c.AlarmAheadMin=+$("c-ahead").value||0;
   c.NormSys=+$("c-norms").value;c.NormDia=+$("c-normd").value;c.PopupCooldownMin=+$("c-cd").value;
+  c.Dob=$("c-dob").value;c.Sex=$("c-sex").value;
   c.Ha=c.Ha||{Url:"",Token:"",Sensors:{pressure:"",temp:"",humidity:"",kp:""}};
   c.Ha.Url=$("c-ha-url").value.trim();c.Ha.Token=$("c-ha-tok").value.trim();
   c.Ha.Sensors={pressure:$("c-ha-s0").value.trim(),temp:$("c-ha-s1").value.trim(),
