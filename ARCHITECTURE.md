@@ -39,7 +39,8 @@
 | **НН** | `NewNn/Forward/FeatsFor/Train/TrainGenetic/Pack/Unpack/EnsureNnDim/SaveNn/LoadNn` |
 | **Погода** | `PollWeather` (живой кэш `Weather`), `FetchWxDay/FillWx/BackfillWeather` (архив), `MaybePopup` |
 | **ФК лекарств** | `MedPkDb` (справочник T½/длительности, грузится из `medpk.json` рядом с exe; при отсутствии — эталон `MedPkDefault`), `MedKtFor`, `MedIntakes` (union отметок приёма `D.MedTakes` и лекарств с измерений), PK-фичи; `CheckMedReminders` — балюны по `Cfg.MedTimes` |
-| **Контекст** | `EmotionAt/NoiseAt/SleepAt` (окна join для НН), `Snapshot/SnapshotContext` |
+| **Контекст** | `EmotionAt/NoiseAt/SleepAt/SleepQualityAt` (окна join для НН), `Snapshot/SnapshotContext` |
+| **Перенос** | `ExportAll()/ImportAll()` — единый JSON (cfg+данные+НН+medpk), `GET /api/export/all` / `POST /api/import/all` (preimport-архив перед заменой) |
 | **Будильники** | `CheckAlarms` (окно догона 30 мин, напоминания), `StartAlarm/StopAlarm` (NAudio) |
 | **HTTP** | `Handle(ctx)` — роут по `switch(path)`, `JsonResp`, `IsLocalSameOrigin` |
 | **Program** | мьютекс single-instance, трей, автозапуск (HKCU\...\Run), таймеры |
@@ -78,23 +79,25 @@ POST /api/measurement {t,sys,dia,pulse,note,meds[]}
 ## Нейросеть
 
 - Топология: `InDim → Hidden(28, tanh) → Hidden2(16, tanh) → 2 (линейно)`. Выходы нормированы: `sys=120+30·y0`, `dia=80+20·y1` (клампы 70–250 / 40–150, `dia<sys` гарантируется).
-- Вход `InDim = 12 + 2·|Meds|`:
+- Вход `InDim = 13 + 2·|Meds|`:
   - `час sin/cos`, `день недели sin/cos` (циклические кодировки);
   - `давление мм` ((P−1013)/40), `температура` (/15), `влажность` (/100), `Kp` (/90, хранится в десятых);
-  - `эмоция` (/10, шкала −10..+10), `шум` (кол-во типов за 3 ч /4), `сон ч` (/10);
+  - `эмоция` (/10, шкала −10..+10), `шум` (кол-во типов за 3 ч /4), `сон ч` (/10), `сон кач` ((Quality−5)/5);
   - на каждое лекарство: `остаточная концентрация` Σ0.5^(dt/T½) (кап 3.0) и `положение в окне действия` (1−dt/Tdur).
-- **Нейтрали при отсутствии данных**: эмоция 0, шум 0, сон 7.5 ч (в т.ч. если запись есть, но часы нулевые).
+- **Нейтрали при отсутствии данных**: эмоция 0, шум 0, сон 7.5 ч (в т.ч. если запись есть, но часы нулевые), качество сна 5.
 - **Окна join**: запись журнала относится к измерению, если её `T ∈ [m.T−окно, m.T+10 мин]`; окна: эмоция 12 ч, шум 3 ч, сон 36 ч.
 - Обучение: `Train()` — SGD по последним 2000 записям, `Epochs` эпох, перемешивание; вызывается при каждом вводе/правке/удалении. `TrainGenetic()` — GA (популяция 60, 250 поколений, турнирный отбор, элитизм 2, равномерный кроссовер, гауссова мутация σ 0.25→0.01), затравка — текущие веса; ~20 с, возвращает MSE.
 - `EnsureNnDim()` при старте/смене лекарств/размеров: несовпадение размерности → `NewNn` + полное переобучение (веса теряются — размерность деструктивна).
 - Loss-кривая: `NnModel.Loss` (последние 500 точек), рисуется на вкладке «Модель».
 - **Валидация** `Validate(holdoutN,seed)`: SGD `TrainModel` на свежей модели без последних N записей (авто n/5, 5–40) → MAE/RMSE в мм рт.ст. на удержанных + перестановочная значимость (5 усреднённых перестановок колонки на holdout, ΔMSE). Фоновая задача `POST /api/nn/validate`, результат в `data\validate.json` и `nn.validate` в `/api/state`.
+- **Автоподбор** `Tune(holdoutN,seed)`: сетка размеров слоёв 16/28/40 × 10/16/24 на том же holdout-разделе (каждая конфигурация — свежая модель + `TrainModel`, сравнение по holdout MSE); лучшая пишется в `Cfg.Nn` + `EnsureNnDim()` пересобирает рабочую модель. Фоновая задача `POST /api/nn/tune`, результат в `data\tune.json` и `nn.tune`.
 
 ## Погодный конвейер
 
 1. **Живой кэш** `Weather` (PressMm/TempC/Hum/Kp/Text/Updated): `PollWeather()` по таймеру (PollMin) и по требованию. Источники: open-meteo `current`, GFZ Kp (последние 24 ч, берётся свежий 3-ч бин), поверх — датчики Home Assistant (если настроены; токен в API отдаётся замаскированным).
-2. **Архив** `FetchWxDay(date)`: дата ≤5 дней назад → forecast API с `past_days`; глубже → archive-api (ERA5). Kp — GFZ json за сутки. `FillWx(m)` заполняет только пустые поля записи (или все — при `force`), `BackfillWeather()` — массово по всем записям с дырками; `force_until` перезаписывает даже заполненное (с откатом, если архив недоступен). После бэкфилла — переобучение НН (погода входит в фичи).
-3. **Popup**: `MaybePopup()` — прогноз НН на текущей погоде выше `NormSys/NormDia` → балюн + звук-напоминание, не чаще `PopupCooldownMin`.
+2. **Прогноз**: тот же open-meteo запрос отдаёт `hourly` на 2 суток → `Forecast` (список `WxHour`, локальное время); `KpForecast` — NOAA SWPC `noaa-planetary-k-index-forecast.json` (entries `observed!=observed`, 3-ч бины UTC). `ForecastPredictions(12)` прогоняет НН по ближайшим 12 часам (Kp — прогнозный, иначе текущий) → `nn.forecast` в state и упреждающий popup `MaybePopupForecast()` (первый час выше нормы → балюн «через ~N часов», общий cooldown с `MaybePopup`). `weather.kpForecast` — макс прогнозного Kp за 24 ч (флаг в шапке при ≥5).
+3. **Архив** `FetchWxDay(date)`: дата ≤5 дней назад → forecast API с `past_days`; глубже → archive-api (ERA5). Kp — GFZ json за сутки. `FillWx(m)` заполняет только пустые поля записи (или все — при `force`), `BackfillWeather()` — массово по всем записям с дырками; `force_until` перезаписывает даже заполненное (с откатом, если архив недоступен). После бэкфилла — переобучение НН (погода входит в фичи).
+4. **Popup**: `MaybePopup()` — прогноз НН на текущей погоде выше `NormSys/NormDia` → балюн + звук-напоминание, не чаще `PopupCooldownMin`.
 
 Важно: forecast API с `past_days` **молча не отдаёт** данные глубже ~40–70 суток — все старые даты получали значение первого доступного часа («застывшая погода»). Отсюда порог 5 дней и ERA5.
 
@@ -127,4 +130,4 @@ dotnet build                    # net481, требует .NET Framework 4.8.1 ta
 bin\Debug\net481\BpMonitor.exe  # index.html и alarm.mp3 копируются в bin (csproj PreserveNewest)
 ```
 
-Правки только HTML подхватываются на лету (файл читается на каждый запрос) — достаточно скопировать `index.html` в `bin\Debug\net481\`. Правки C# требуют kill+build+restart. Git-репозиторий заведён (`bin/`, `obj/`, `data/`, `config.json`, `backups/` в `.gitignore`). Тесты: `BpMonitor.exe --selftest` — 13 проверок ядра в песочнице (см. `App.SelfTest`); ручная проверка UI делалась через браузер-автоматизацию.
+Правки только HTML подхватываются на лету (файл читается на каждый запрос) — достаточно скопировать `index.html` в `bin\Debug\net481\`. Правки C# требуют kill+build+restart. Git-репозиторий заведён (`bin/`, `obj/`, `data/`, `config.json`, `backups/` в `.gitignore`). Тесты: `BpMonitor.exe --selftest` — 15 проверок ядра в песочнице (см. `App.SelfTest`); ручная проверка UI делалась через браузер-автоматизацию.

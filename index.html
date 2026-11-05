@@ -39,6 +39,24 @@ tr:nth-child(even) td{background:#fafaf8}
 #flash{position:fixed;right:12px;bottom:12px;background:#2e7d32;color:#fff;padding:6px 14px;border-radius:4px;display:none;z-index:99}
 .med{display:inline-block;margin:1px 10px 1px 0}
 canvas{max-width:100%;border:1px solid var(--bd);background:#fff}
+.fc{display:inline-flex;flex-direction:column;align-items:center;border:1px solid var(--bd);border-radius:4px;padding:3px 7px;margin:2px 3px 2px 0;font-size:12px;background:#fff}
+.fc b{font-size:13px}
+.fc.bad{background:#fdecea;border-color:#e57373;color:#b71c1c}
+.fc .up{color:#777;font-size:11px}
+@media (max-width:760px){
+  header{padding:6px;gap:6px}
+  header b{font-size:13px}
+  main{padding:6px}
+  section{padding:8px;overflow-x:auto}
+  nav{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch}
+  nav button{white-space:nowrap;flex:0 0 auto}
+  table{font-size:12px}
+  th,td{padding:2px 4px}
+  .grid{gap:6px 10px}
+  input,select,button{font-size:14px;padding:5px 8px}
+  input[type=number]{width:70px}
+  #bp-cv,#loss-cv{min-width:640px}
+}
 </style>
 </head>
 <body>
@@ -104,6 +122,10 @@ canvas{max-width:100%;border:1px solid var(--bd);background:#fff}
       </div>
     </section>
     <section>
+      <h3>График по фильтру <span class="mut" id="g-hint"></span></h3>
+      <canvas id="bp-cv" width="960" height="280"></canvas>
+    </section>
+    <section>
       <h3>Измерения <span class="mut" id="h-count"></span></h3>
       <table id="hist-t">
         <thead><tr><th>Дата</th><th>Врем</th><th>Сис</th><th>Диаст</th><th>Пульс</th><th>мм</th><th>°C</th><th>Kp</th><th>Погода</th><th>Лекарства</th><th>Контекст</th><th>Прим.</th><th></th></tr></thead>
@@ -153,14 +175,19 @@ canvas{max-width:100%;border:1px solid var(--bd);background:#fff}
 
   <div class="panel" id="p-nn">
     <section>
-      <h3>Личная модель (12 + 2×лекарств → H(tanh) → 2, онлайн-обучение)</h3>
+      <h3>Личная модель (13 + 2×лекарств → H(tanh) → H2(tanh) → 2, онлайн-обучение)</h3>
       <div class="grid">
         <span id="nn-pred" style="font-size:14px"></span>
         <button class="primary" onclick="nnTrain()">Обучить</button>
         <button onclick="nnTrainGa()">Генетическое обучение</button>
         <button onclick="nnReset()">Сбросить модель</button>
       </div>
-      <p class="mut" style="margin:6px 0 0">Фичи: час дня (sin/cos), день недели (sin/cos), барометр, температура, влажность, Kp, эмоция, шум, сон, кол-во лекарств + на каждое лекарство две PK-фичи: остаточная активность (затухание по T½ от каждого приёма) и положение в окне действия. При изменении списка лекарств модель переучивается автоматически.</p>
+      <p class="mut" style="margin:6px 0 0">Фичи: час дня (sin/cos), день недели (sin/cos), барометр, температура, влажность, Kp, эмоция, шум, часы и качество сна, кол-во лекарств + на каждое лекарство две PK-фичи: остаточная активность (затухание по T½ от каждого приёма) и положение в окне действия. При изменении списка лекарств модель переучивается автоматически.</p>
+    </section>
+    <section>
+      <h3>Прогноз на ближайшие 12 часов (по прогнозу погоды и Kp)</h3>
+      <div id="nn-fc"><span class="mut">нет прогноза — дождитесь опроса погоды (⟳ погода)</span></div>
+      <p class="mut" style="margin:6px 0 0">Красным — прогноз выше вашей нормы: приложение предупредит балюном заранее («измерьте давление через ~N часов»), а не по факту.</p>
     </section>
     <section>
       <h3>Потери (loss)</h3>
@@ -170,9 +197,11 @@ canvas{max-width:100%;border:1px solid var(--bd);background:#fff}
       <h3>Контроль качества (holdout)</h3>
       <div class="grid" style="align-items:center">
         <button class="primary" onclick="nnValidate()">Проверить модель</button>
+        <button onclick="nnTune()" title="перебор размеров слоёв на holdout">Подобрать гиперпараметры</button>
         <span id="nn-val-sum" class="mut"></span>
       </div>
       <div id="nn-val" style="margin-top:8px"></div>
+      <div id="nn-tune" style="margin-top:8px"></div>
     </section>
     <section>
       <h3>Прогнозы модели по последним 30 измерениям</h3>
@@ -284,6 +313,15 @@ canvas{max-width:100%;border:1px solid var(--bd);background:#fff}
       <p class="mut" style="margin:6px 0 0">Новый размер слоя применится после «Сбросить модель» (вкладка «Модель»).</p>
     </section>
     <section>
+      <h3>Перенос на другой ПК</h3>
+      <div class="grid">
+        <button onclick="exportAll()" title="единый JSON: настройки + все данные + модель + справочник ФК">⬇ Экспорт всего</button>
+        <input type="file" id="imp-file" accept=".json,application/json">
+        <button onclick="importAll()" class="primary">⬆ Импорт из файла</button>
+        <span class="mut">импорт заменит все текущие данные (перед ним создастся архив в backups\\)</span>
+      </div>
+    </section>
+    <section>
       <div class="grid">
         <button class="primary" onclick="saveCfg()">Сохранить настройки</button>
         <span id="cfg-msg" class="mut"></span>
@@ -375,6 +413,7 @@ function renderHeader(){
     (w.TempC!=null?`<span>${w.TempC.toFixed(1)} °C</span>`:"")+
     (w.Hum!=null?`<span>Влажн ${Math.round(w.Hum)} %</span>`:"")+
     (w.Kp!=null?`<span class="${w.Kp>=50?"warn":""}">Kp ${(w.Kp/10).toFixed(1)}</span>`:"")+
+    (w.kpForecast>=5?`<span class="warn" title="прогноз NOAA SWPC на ближайшие сутки">⚡Kp прогноз ${w.kpForecast.toFixed(1)}</span>`:"")+
     (w.Text?`<span>${esc(w.Text)}</span>`:"")+
     (w.Updated?`<span class="up">(${fhm(w.Updated)})</span>`:"")+
     `<button onclick="refreshWx()" title="Обновить погоду">⟳ погода</button>`;
@@ -406,6 +445,23 @@ async function wxBackfill(){
   await waitJob("Заполняю погоду из архива");loadState();}
 async function compactDb(){const j=await apiPost("/api/storage/compact");
   flash(j.ok?("База сжата: "+j.before+" → "+j.after+" байт"):("Ошибка: "+(j.err||"?")),!!j.ok,6000);}
+/* перенос на другой ПК: единый JSON-файл */
+function exportAll(){window.location="/api/export/all";}
+async function importAll(){
+  const f=$("imp-file").files[0];
+  if(!f){flash("Выберите файл экспорта (.json)",false);return;}
+  if(!confirm("ВНИМАНИЕ: импорт заменит ВСЕ текущие настройки и данные содержимым файла.\nПеред импортом создастся архив в backups\\. Продолжить?"))return;
+  const r=new FileReader();
+  r.onload=async()=>{
+    let body;try{body=JSON.parse(r.result);}catch(e){flash("Файл не является JSON",false,5000);return;}
+    body.confirm=true;
+    const j=await apiPost("/api/import/all",body);
+    flash(j.ok?("Импортировано: "+j.imported):("Ошибка: "+(j.err||"?")),!!j.ok,8000);
+    $("imp-file").value="";
+    loadState();
+  };
+  r.readAsText(f,"utf-8");
+}
 
 /* ---------- измерение ---------- */
 function renderMeas(){
@@ -485,6 +541,7 @@ function fList(){
 function renderHist(){
   const l=fList();
   $("h-count").textContent="("+l.length+")";
+  drawBp(l.slice().sort((a,b)=>new Date(a.T)-new Date(b.T)));
   document.querySelector("#hist-t tbody").innerHTML=l.map(m=>{
     const ctx=[m.EmotionLabel?m.EmotionLabel:null,m.SleepH!=null?"сон "+m.SleepH.toFixed(1)+" ч":null,
       m.Noise&&m.Noise.length?"шум: "+m.Noise.join(", "):null].filter(Boolean).join("; ");
@@ -493,6 +550,56 @@ function renderHist(){
       `<td>${esc(m.Wx||"")}</td><td>${esc(m.Meds.join(", "))}</td><td class="mut">${esc(ctx)}</td><td class="mut">${esc(m.Note||"")}</td>`+
       `<td><button onclick="editM('${m.Id}')">изм</button> <button onclick="delM('${m.Id}')">✕</button></td></tr>`;
   }).join("")||'<tr><td colspan="13" class="mut">нет данных</td></tr>';
+}
+/* график АД по отфильтрованному списку: sys/dia/pulse по времени */
+function drawBp(l){
+  const c=$("bp-cv"),x=c.getContext("2d");
+  x.clearRect(0,0,c.width,c.height);
+  $("g-hint").textContent="";
+  if(l.length<2){x.fillStyle="#999";x.font="12px Tahoma";x.fillText("Мало точек для графика — расширьте фильтр",10,24);return;}
+  const L=44,R=c.width-10,T=14,B=c.height-26;
+  const t0=new Date(l[0].T).getTime(),t1=new Date(l[l.length-1].T).getTime()||t0+1;
+  const span=Math.max(1,t1-t0);
+  let lo=Math.min(...l.map(m=>Math.min(m.Dia,m.Pulse||m.Dia))),hi=Math.max(...l.map(m=>m.Sys));
+  lo=Math.floor((lo-5)/10)*10;hi=Math.ceil((hi+5)/10)*10;
+  const X=t=>L+(new Date(t).getTime()-t0)/span*(R-L);
+  const Y=v=>B-(v-lo)/(hi-lo)*(B-T);
+  x.strokeStyle="#eee";x.fillStyle="#777";x.font="10px Tahoma";x.lineWidth=1;
+  for(let v=lo;v<=hi;v+=20){
+    x.beginPath();x.moveTo(L,Y(v));x.lineTo(R,Y(v));x.stroke();
+    x.fillText(String(v),8,Y(v)+3);
+  }
+  const norm=S.cfg.NormSys;
+  if(norm>=lo&&norm<=hi){x.strokeStyle="#e57373";x.setLineDash([4,3]);x.beginPath();x.moveTo(L,Y(norm));x.lineTo(R,Y(norm));x.stroke();x.setLineDash([]);}
+  // подписи дат по оси X
+  x.fillStyle="#999";
+  const nlab=Math.min(6,l.length);
+  for(let i=0;i<nlab;i++){
+    const m=l[Math.round(i*(l.length-1)/(nlab-1||1))];
+    const px=X(m.T);
+    x.fillText(fdt(m.T)+" "+fhm(m.T),Math.min(px-24,R-58),c.height-8);
+  }
+  const series=[[ "Sys","#c0392b","систолическое" ],[ "Dia","#2f5d8a","диастолическое" ],[ "Pulse","#2e7d32","пульс" ]];
+  for(const [key,col,name] of series){
+    x.strokeStyle=col;x.lineWidth=1.6;x.beginPath();
+    let first=true;
+    for(const m of l){
+      if(!m[key]){first=true;continue;}
+      const px=X(m.T),py=Y(m[key]);
+      if(first){x.moveTo(px,py);first=false;}else x.lineTo(px,py);
+    }
+    x.stroke();
+    x.lineWidth=1;
+    if(l.length<=120){x.fillStyle=col;for(const m of l){if(!m[key])continue;x.beginPath();x.arc(X(m.T),Y(m[key]),2,0,7);x.fill();}}
+  }
+  // легенда
+  let lx=L+6;
+  x.font="11px Tahoma";
+  for(const [key,col,name] of series){
+    x.fillStyle=col;x.fillRect(lx,T+2,10,3);x.fillStyle="#444";x.fillText(name,lx+14,T+7);
+    lx+=x.measureText(name).width+34;
+  }
+  $("g-hint").textContent="красным пунктиром — норма сис "+norm;
 }
 async function doExport(kind){
   const r=await fetch("/api/export",{method:"POST",headers:{"Content-Type":"application/json"},
@@ -562,6 +669,8 @@ async function renderNn(){
   $("nn-pred").innerHTML=p?`Текущий прогноз: <b style="font-size:16px">${Math.round(p.sys)} / ${Math.round(p.dia)}</b> мм рт.ст.`:"";
   drawLoss();
   renderValidate(S.nn&&S.nn.validate);
+  renderTune(S.nn&&S.nn.tune);
+  renderForecast(S.nn&&S.nn.forecast);
   try{
     const arr=await (await fetch("/api/nn/predictions")).json();
     predMap={};arr.forEach(x=>predMap[x.id]=x);
@@ -620,6 +729,37 @@ async function nnValidate(){
   const j=await apiPost("/api/nn/validate");
   if(!j.ok){flash("Ошибка: "+(j.err||"?"),false,6000);return;}
   await waitJob("Валидация модели");loadState();
+}
+/* почасовой прогноз модели по прогнозу погоды/Kp (nn.forecast) */
+function renderForecast(f){
+  const box=$("nn-fc");
+  if(!f||!f.length){box.innerHTML='<span class="mut">нет прогноза — дождитесь опроса погоды (⟳ погода)</span>';return;}
+  const ns=S.cfg.NormSys,nd=S.cfg.NormDia;
+  box.innerHTML=f.map(x=>{
+    const bad=x.sys>ns||x.dia>nd;
+    const d=new Date(x.t);
+    return `<span class="fc${bad?" bad":""}" title="${x.press!=null?"давл. "+x.press+" мм, ":""}${x.temp!=null?x.temp+" °C, ":""}${x.kp!=null?"Kp "+x.kp:"без Kp"}">`+
+      `<span class="up">${p2(d.getDate())}.${p2(d.getMonth()+1)} ${p2(d.getHours())}:00</span>`+
+      `<b>${x.sys}/${x.dia}</b></span>`;
+  }).join("");
+}
+/* результат автоподбора гиперпараметров */
+function renderTune(t){
+  const box=$("nn-tune");
+  if(!t){box.innerHTML="";return;}
+  const res=(t.results||[]).slice(0,5);
+  box.innerHTML=`<h3 style="margin-top:12px">Автоподбор гиперпараметров (${t.at})</h3>`+
+    `Лучшая конфигурация: <b>${t.hidden} / ${t.hidden2}</b> слоёв, holdout MSE <b>${t.holdMse}</b>`+
+    (t.changed?' <span class="mut">применена к модели</span>':' <span class="mut">текущие размеры уже были лучшими</span>')+
+    `<table style="margin-top:6px"><thead><tr><th>слой 1</th><th>слой 2</th><th>holdout MSE</th></tr></thead><tbody>`+
+    res.map(r=>`<tr><td>${r.hidden}</td><td>${r.hidden2}</td><td>${r.holdMse}</td></tr>`).join("")+
+    `</tbody></table><span class="mut">показаны 5 лучших из ${(t.results||[]).length} конфигураций сетки</span>`;
+}
+async function nnTune(){
+  if(!confirm("Подбор гиперпараметров: перебор 9 конфигураций размеров слоёв на holdout (займёт ~1–2 мин). Продолжить?"))return;
+  const j=await apiPost("/api/nn/tune");
+  if(!j.ok){flash("Ошибка: "+(j.err||"?"),false,6000);return;}
+  await waitJob("Подбор гиперпараметров");loadState();
 }
 async function nnTrainGa(){if(!confirm("Генетическое обучение: дольше, но может уйти из локального минимума. Продолжить?"))return;
   const j=await apiPost("/api/nn/train_ga");

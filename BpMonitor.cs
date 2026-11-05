@@ -4,7 +4,7 @@
 //  HTTP-сервер (System.Net.HttpListener) + компактный Web UI (index.html)
 //  Погода: open-meteo (без ключа) + GFZ kp.gfz.de (Kp хранится в десятых: 33 = 3.3)
 //  HomeAssistant: опциональный REST-датчики (pressure/temp/humidity/kp)
-//  NN: персональная сеть 12 -> H(tanh) -> 2 (сис/диаст), обучается online
+//  NN: персональная сеть 13 -> H(tanh) -> H2(tanh) -> 2 (сис/диаст), обучается online
 //  Хранилище: data/data.bin — бинарный append-журнал (типизированные поля, пул строк);
 //    data/nn.bin — модель; config.json. Миграция со старых форматов автоматическая
 // ============================================================================
@@ -217,7 +217,7 @@ static class App{
 	static double Clamp(double v,double lo,double hi){ return v<lo?lo:(v>hi?hi:v); }
 	public static readonly string[] FeatBase={
 		"час sin","час cos","день sin","день cos","давл. мм","температура","влажность","Kp",
-		"эмоция","шум(кол-во)","сон ч","лекарств(кол-во)"
+		"эмоция","шум(кол-во)","сон ч","сон кач","лекарств(кол-во)"
 	};
 	// полные имена фич: базовые + по 2 на каждое лекарство (активность/окно)
 	public static string[] GetFeatNames(){
@@ -234,6 +234,16 @@ static class App{
 		public DateTime? Updated;
 	}
 	public static Wx Weather=new Wx();
+	// Прогноз: open-meteo hourly (почасово, ближайшие 2 суток) + NOAA SWPC Kp-прогноз
+	// (3-часовые бины, UTC; entries observed!="observed"). Используется для popup «заранее».
+	public class WxHour{
+		public DateTime T;
+		public double? Press,Temp,Hum;
+		public int? Code;
+	}
+	static List<WxHour> Forecast=new List<WxHour>();
+	static DateTime? ForecastUpdated;
+	static List<KeyValuePair<DateTime,double>> KpForecast=new List<KeyValuePair<DateTime,double>>();// старт 3-ч бина (UTC) -> Kp
 	static bool _weatherBusy;
 	static readonly JsonSerializerSettings JSONSettings=new JsonSerializerSettings{ObjectCreationHandling=ObjectCreationHandling.Replace};
 	// ----------------------------- пути/загрузка -----------------------------
@@ -247,6 +257,7 @@ static class App{
 	public static void Load(){
 		LoadMedPk();// справочник ФК нужен до EnsureNnDim/Train (PK-фичи)
 		LoadValidation();
+		LoadTune();
 		try{
 			if(File.Exists(CfgPath))
 				Cfg=JsonConvert.DeserializeObject<Config>(File.ReadAllText(CfgPath,Encoding.UTF8),JSONSettings)??new Config();
@@ -617,6 +628,11 @@ static class App{
 		SleepEntry s=D.S.Where(x=>x.T<=t.AddMinutes(10)&&t-x.T<=TimeSpan.FromHours(36)).OrderByDescending(x=>x.T).FirstOrDefault();
 		return s!=null&&s.Hours>0?s.Hours:7.5f;// нет/ноль -> нейтральные 7.5 ч
 	}
+	// качество сна 0..10 (шкала журнала), нет записи -> нейтральные 5
+	static float SleepQualityAt(DateTime t){
+		SleepEntry s=D.S.Where(x=>x.T<=t.AddMinutes(10)&&t-x.T<=TimeSpan.FromHours(36)).OrderByDescending(x=>x.T).FirstOrDefault();
+		return s!=null?s.Quality:5f;
+	}
 	// ----------------------------- фармакокинетика лекарств -----------------------------
 	// T½ / длительность действия, часы. Источники: StatPearls NCBI NBK554579, DailyMed,
 	// PMC8109523 (АКК), SmPC бисопролола, Br J Clin Pharmacol (метотрексат низкие дозы).
@@ -714,7 +730,8 @@ static class App{
 		x[8]=EmotionAt(m.T)/10.0;
 		x[9]=NoiseAt(m.T)/4.0;
 		x[10]=SleepAt(m.T)/10.0;
-		x[11]=m.Meds.Count/4.0;
+		x[11]=(SleepQualityAt(m.T)-5.0)/5.0;// -1..+1 вокруг нейтрали 5
+		x[12]=m.Meds.Count/4.0;
 		for(int k=0;k<Cfg.Meds.Count;k++){// PK-фичи: остаточная активность и нахождение в окне действия
 			(double half,double dur)=MedKtFor(Cfg.Meds[k]);
 			double conc=0,win=0;
@@ -1010,6 +1027,63 @@ static class App{
 		};
 	}
 
+	// ----------------------------- НН: автоподбор гиперпараметров -----------------------------
+	// Сетка размеров слоёв прогоняется на том же holdout-разделе, что и Validate: каждая
+	// конфигурация обучается с нуля на всех записях, кроме последних N, и сравнивается по
+	// holdout MSE. Лучшая применяется в Cfg.Nn (модель пересоздаётся и переобучивается).
+	static JObject _lastTune;
+	public static JObject LastTune=>_lastTune;
+	public static void LoadTune(){
+		try{
+			string f=Path.Combine(ExeDir,"data","tune.json");
+			if(File.Exists(f)) _lastTune=JObject.Parse(File.ReadAllText(f,Encoding.UTF8));
+		} catch(Exception ex){ Log("tune.json: "+ex.Message); }
+	}
+	static void SaveTune(){
+		try{
+			if(_lastTune!=null) File.WriteAllText(Path.Combine(ExeDir,"data","tune.json"),
+				_lastTune.ToString(Newtonsoft.Json.Formatting.None),Encoding.UTF8);
+		} catch(Exception ex){ Log("tune.json: "+ex.Message); }
+	}
+	public static JObject Tune(int holdoutN=0,int seed=42){
+		List<Measurement> items=D.M.Where(m=>m.Sys>0).OrderBy(m=>m.T).ToList();
+		int n=items.Count;
+		if(n<20) throw new Exception("мало данных для подбора: "+n+" записей (нужно ≥20)");
+		int hold=holdoutN>0?Math.Min(holdoutN,n-10):Math.Max(5,Math.Min(40,n/5));
+		if(hold<5) hold=5;
+		Dictionary<string,List<DateTime>> intakes=MedIntakes();
+		List<double[]> xs=new List<double[]>(),xh=new List<double[]>(),ys=new List<double[]>(),yh=new List<double[]>();
+		for(int i=0;i<n;i++){
+			double[] x=FeatsFor(items[i],intakes);
+			double[] y=new[]{(items[i].Sys-120.0)/30.0,(items[i].Dia-80.0)/20.0};
+			if(i<n-hold){ xs.Add(x); ys.Add(y); } else { xh.Add(x); yh.Add(y); }
+		}
+		int[] grid1={16,28,40},grid2={10,16,24};
+		JArray results=new JArray();
+		double bestMse=double.MaxValue; int bestH=Cfg.Nn.Hidden,bestH2=Cfg.Nn.Hidden2;
+		int total=grid1.Length*grid2.Length,done=0;
+		JobProgress(0,total);
+		foreach(int h in grid1) foreach(int h2 in grid2){
+			NnModel tmp=NewNn(h,h2,InDim());
+			TrainModel(tmp,xs,ys,Cfg.Nn.Lr,Math.Max(1,Cfg.Nn.Epochs),false,seed);
+			double hm=Mse(tmp,xh,yh);
+			results.Add(new JObject{["hidden"]=h,["hidden2"]=h2,["holdMse"]=Math.Round(hm,5)});
+			if(hm<bestMse){ bestMse=hm; bestH=h; bestH2=h2; }
+			done++; JobProgress(done);
+		}
+		bool changed=bestH!=Cfg.Nn.Hidden||bestH2!=Cfg.Nn.Hidden2;
+		Cfg.Nn.Hidden=bestH; Cfg.Nn.Hidden2=bestH2;
+		SaveCfg();
+		EnsureNnDim();// при смене размеров — пересоздание и полное переобучение рабочей модели
+		return new JObject{
+			["at"]=DateTime.Now.ToString("yyyy-MM-dd HH:mm"),
+			["n"]=n,["nTrain"]=xs.Count,["nHold"]=xh.Count,
+			["hidden"]=bestH,["hidden2"]=bestH2,["holdMse"]=Math.Round(bestMse,5),
+			["changed"]=changed,
+			["results"]=new JArray(results.Cast<JObject>().OrderBy(o=>(double)o["holdMse"]).Cast<JToken>().ToList())
+		};
+	}
+
 	// ----------------------------- погода -----------------------------
 	static string WmoText(int c){
 		switch(c){
@@ -1033,13 +1107,34 @@ static class App{
 		ServicePointManager.SecurityProtocol=System.Net.SecurityProtocolType.SystemDefault|SecurityProtocolType.Tls12|SecurityProtocolType.Tls13;
 		try{
 			string url;
-			url=string.Format(CultureInfo.InvariantCulture,"https://api.open-meteo.com/v1/forecast?latitude={0}&longitude={1}&current=temperature_2m,relative_humidity_2m,pressure_msl,weather_code&timezone=auto&forecast_days=2",
+			url=string.Format(CultureInfo.InvariantCulture,"https://api.open-meteo.com/v1/forecast?latitude={0}&longitude={1}&current=temperature_2m,relative_humidity_2m,pressure_msl,weather_code&hourly=pressure_msl,temperature_2m,relative_humidity_2m,weather_code&timezone=auto&forecast_days=2",
 			Cfg.Lat,Cfg.Lon);
 			JObject j=JObject.Parse(await Http.GetStringAsync(url));
 			Weather.PressMm=(float)((double)j["current"]["pressure_msl"]*0.750062);
 			Weather.TempC=(float)(double)j["current"]["temperature_2m"];
 			Weather.Hum=(float)(double)j["current"]["relative_humidity_2m"];
 			Weather.Text=WmoText((int)(double)j["current"]["weather_code"]);
+			try{// почасовой прогноз (ближайшие ~2 суток) для упреждающего popup
+				JObject fh=j["hourly"] as JObject;
+				JArray ft=fh!=null?fh["time"] as JArray:null;
+				if(ft!=null){
+					JArray fp=fh["pressure_msl"] as JArray,ftm=fh["temperature_2m"] as JArray,fhm=fh["relative_humidity_2m"] as JArray,fc=fh["weather_code"] as JArray;
+					List<WxHour> fl=new List<WxHour>();
+					for(int i2=0;i2<ft.Count;i2++){
+						DateTime ht;
+						if(!DateTime.TryParse((string)ft[i2],CultureInfo.InvariantCulture,DateTimeStyles.None,out ht)) continue;
+						if(ht<DateTime.Now.AddHours(-1)) continue;
+						fl.Add(new WxHour{
+							T=ht,
+							Press=fp!=null&&i2<fp.Count?(double?)fp[i2]:null,
+							Temp=ftm!=null&&i2<ftm.Count?(double?)ftm[i2]:null,
+							Hum=fhm!=null&&i2<fhm.Count?(double?)fhm[i2]:null,
+							Code=fc!=null&&i2<fc.Count?(int?)(double?)fc[i2]:null
+						});
+					}
+					if(fl.Count>0){ Forecast=fl; ForecastUpdated=DateTime.Now; }
+				}
+			} catch(Exception ex){ Log("Forecast: "+ex.Message); }
 			try{
 				if(!Http.DefaultRequestHeaders.Contains("User-Agent"))
 					Http.DefaultRequestHeaders.Add("User-Agent",
@@ -1072,6 +1167,18 @@ static class App{
 					Weather.Kp=(int)Math.Round(currentKp*10);// десятые доли
 				}
 			} catch(Exception ex){ Log("Kp: "+ex.Message); }
+			try{// NOAA SWPC: 3-дневный прогноз Kp (3-ч бины, UTC; observed = estimated/predicted)
+				JArray kf=JArray.Parse(await Http.GetStringAsync("https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json"));
+				List<KeyValuePair<DateTime,double>> l=new List<KeyValuePair<DateTime,double>>();
+				foreach(JToken x in kf){
+					if((string)x["observed"]=="observed") continue;
+					DateTime tt; double kv;
+					if(DateTime.TryParse((string)x["time_tag"],CultureInfo.InvariantCulture,DateTimeStyles.AssumeUniversal|DateTimeStyles.AdjustToUniversal,out tt)
+						&&double.TryParse((string)x["kp"],NumberStyles.Number,CultureInfo.InvariantCulture,out kv))
+						l.Add(new KeyValuePair<DateTime,double>(tt,kv));
+				}
+				if(l.Count>0) KpForecast=l;
+			} catch(Exception ex){ Log("KpFc: "+ex.Message); }
 
 			// HomeAssistant (опционально): перекрывает указанные датчики
 			if(!string.IsNullOrWhiteSpace(Cfg.Ha.Url)&&!string.IsNullOrWhiteSpace(Cfg.Ha.Token))
@@ -1093,6 +1200,7 @@ static class App{
 				}
 			Weather.Updated=DateTime.Now;
 			MaybePopup("погода");
+			MaybePopupForecast();
 		} catch(Exception ex){ Log("PollWeather: "+ex.Message); } finally{ _weatherBusy=false; }
 	}
 	// fire-and-forget для таймера/Snapshot: все исключения уже логируются внутри PollWeatherAsync
@@ -1201,6 +1309,66 @@ static class App{
 
 	// ----------------------------- popup (прогноз выше нормы) -----------------------------
 	public static Control UiCtx;// hidden form для Invoke
+	// прогнозный Kp для момента (локальное время): 3-ч бин SWPC в UTC; null — нет прогноза
+	static int? KpForecastAt(DateTime localT){
+		DateTime u=localT.ToUniversalTime();
+		double? v=null;
+		foreach(KeyValuePair<DateTime,double> p in KpForecast) if(p.Key<=u&&u<p.Key.AddHours(3)) v=p.Value;
+		return v!=null?(int?)Math.Round(v.Value*10):null;
+	}
+	// прогноз НН по почасовому прогнозу погоды на ближайшие hours часов (для UI и popup)
+	public static JArray ForecastPredictions(int hours=12){
+		JArray arr=new JArray();
+		if(Forecast.Count==0) return arr;
+		DateTime now=DateTime.Now;
+		Dictionary<string,List<DateTime>> intakes=MedIntakes();
+		foreach(WxHour pt in Forecast.Where(p=>p.T>=now&&p.T<=now.AddHours(hours))){
+			Measurement m=new Measurement{
+				T=pt.T,
+				PressMm=pt.Press!=null?(float)(pt.Press.Value*0.750062):(float?)null,
+				TempC=pt.Temp!=null?(float)pt.Temp.Value:(float?)null,
+				Hum=pt.Hum!=null?(float)pt.Hum.Value:(float?)null,
+				Kp=KpForecastAt(pt.T)??Weather.Kp
+			};
+			double[] y=Forward(D.Nn,FeatsFor(m,intakes));
+			double sys=Clamp(120+30*y[0],70,250),dia=Clamp(80+20*y[1],40,150);
+			if(dia>=sys) dia=sys-20;
+			arr.Add(new JObject{
+				["t"]=pt.T.ToString("yyyy-MM-dd HH:00"),
+				["sys"]=Math.Round(sys),["dia"]=Math.Round(dia),
+				["press"]=pt.Press!=null?(JToken)Math.Round(pt.Press.Value*0.750062):JValue.CreateNull(),
+				["temp"]=pt.Temp!=null?(JToken)Math.Round(pt.Temp.Value):JValue.CreateNull(),
+				["kp"]=m.Kp!=null?(JToken)(m.Kp.Value/10.0):JValue.CreateNull()
+			});
+		}
+		return arr;
+	}
+	// «через ~N часов условия как в дни ростов»: прогон модели по почасовому прогнозу
+	// погоды/Kp и предупреждаем заранее, а не по факту. Общий cooldown с обычным popup.
+	public static void MaybePopupForecast(){
+		if(Forecast.Count==0) return;
+		lock(Sync){
+		try{
+			if(D.LastPopup!=null&&DateTime.Now-D.LastPopup.Value<TimeSpan.FromMinutes(Cfg.PopupCooldownMin)) return;
+			DateTime now=DateTime.Now;
+			foreach(JToken t in ForecastPredictions(12)){
+				JObject o=(JObject)t;
+				DateTime pt=DateTime.Parse((string)o["t"],CultureInfo.InvariantCulture,DateTimeStyles.None);
+				double sys=(double)o["sys"],dia=(double)o["dia"];
+				if(!(sys>Cfg.NormSys)&&!(dia>Cfg.NormDia)) continue;
+				D.LastPopup=DateTime.Now;
+				AppendPopup();
+				int inH=Math.Max(1,(int)Math.Round((pt-now).TotalHours));
+				string msg="Прогноз личной модели на ~"+inH+" ч: "+sys.ToString("0")+" / "+dia.ToString("0")+" мм рт.ст."
+					+" (норма ≤ "+Cfg.NormSys+" / "+Cfg.NormDia+").\r\nУсловия похожи на те, при которых у вас росло давление — измерьте заранее."
+					+(o["kp"]!=null&&(double)o["kp"]>=5?"\r\nПрогнозируется геомагнитная активность Kp "+((double)o["kp"]).ToString("0.0")+".":"");
+				NotifyIcon ni=Program.TrayIcon;
+				ni?.ShowBalloonTip(10000,"BpMonitor — прогноз",msg,ToolTipIcon.Warning);
+				break;
+			}
+		} catch(Exception ex){ Log("PopupForecast: "+ex.Message); }
+		}
+	}
 	public static void MaybePopup(string trigger){
 		if(Weather.PressMm==null) return;
 		lock(Sync){
@@ -1591,6 +1759,81 @@ static class App{
 		return added;
 	}
 
+	// ----------------------------- перенос: экспорт/импорт всего одним файлом -----------------------------
+	// Единый JSON-снимок: настройки + все данные + веса НН + справочник ФК.
+	// GET /api/export/all скачивает его, POST /api/import/all восстанавливает (с автобэкапом перед заменой).
+	public static JObject ExportAll(){
+		return new JObject{
+			["app"]="BpMonitor",
+			["ver"]=1,
+			["exported"]=DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+			["cfg"]=JObject.FromObject(Cfg),
+			["data"]=new JObject{
+				["measurements"]=JArray.FromObject(D.M.OrderBy(m=>m.T).ToList()),
+				["emotions"]=JArray.FromObject(D.E.OrderBy(e=>e.T).ToList()),
+				["noises"]=JArray.FromObject(D.N.OrderBy(e=>e.T).ToList()),
+				["sleeps"]=JArray.FromObject(D.S.OrderBy(e=>e.T).ToList()),
+				["medtakes"]=JArray.FromObject(D.MedTakes.OrderBy(x=>x.T).ToList()),
+				["lastPopup"]=D.LastPopup!=null?(JToken)D.LastPopup.Value.ToString("yyyy-MM-dd HH:mm:ss"):JValue.CreateNull()
+			},
+			["nn"]=D.Nn!=null?JObject.FromObject(D.Nn):null,
+			["medpk"]=JObject.FromObject(MedPkDb)
+		};
+	}
+	public static string ImportAll(JObject j){
+		if((string)j["app"]!="BpMonitor") throw new Exception("это не файл экспорта BpMonitor");
+		int ver=(int?)j["ver"]??0;
+		if(ver<1) throw new Exception("неподдерживаемая версия файла: "+ver);
+		JObject c=j["cfg"] as JObject,d=j["data"] as JObject,nn=j["nn"] as JObject;
+		if(d==null) throw new Exception("в файле нет блока data");
+		Config nc=JsonConvert.DeserializeObject<Config>(c!=null?c.ToString():"{}",JSONSettings)??new Config();
+		nc.Meds=(nc.Meds??new List<string>()).Where(x=>!string.IsNullOrWhiteSpace(x)).Select(x=>x.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+		nc.Noises=(nc.Noises??new List<string>()).Where(x=>!string.IsNullOrWhiteSpace(x)).Select(x=>x.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+		if(nc.MedKt==null) nc.MedKt=new Dictionary<string,MedKt>();
+		if(nc.MedTimes==null) nc.MedTimes=new Dictionary<string,List<string>>();
+		DataStore nd=new DataStore();
+		if(d["measurements"] is JArray a1) nd.M=a1.ToObject<List<Measurement>>()??new List<Measurement>();
+		if(d["emotions"] is JArray a2) nd.E=a2.ToObject<List<EmotionEntry>>()??new List<EmotionEntry>();
+		if(d["noises"] is JArray a3) nd.N=a3.ToObject<List<NoiseEntry>>()??new List<NoiseEntry>();
+		if(d["sleeps"] is JArray a4) nd.S=a4.ToObject<List<SleepEntry>>()??new List<SleepEntry>();
+		if(d["medtakes"] is JArray a5) nd.MedTakes=a5.ToObject<List<MedTakeEntry>>()??new List<MedTakeEntry>();
+		if(d["lastPopup"]!=null&&d["lastPopup"].Type!=JTokenType.Null){
+			DateTime lpd;
+			if(DateTime.TryParse((string)d["lastPopup"],CultureInfo.InvariantCulture,DateTimeStyles.None,out lpd)) nd.LastPopup=lpd;
+		}
+		NnModel nnd=null;
+		if(nn!=null){ try{ nnd=nn.ToObject<NnModel>(); } catch{} }
+		if(nnd==null||nnd.W1==null||nnd.W1b==null||nnd.W2==null||nnd.B2==null)
+			throw new Exception("в файле нет корректной модели НН — импорт отменён, данные не тронуты");
+		// страховка перед заменой: архив текущего состояния
+		try{
+			string dir=Path.Combine(ExeDir,"backups");
+			Directory.CreateDirectory(dir);
+			string zip=Path.Combine(dir,"preimport-"+DateTime.Now.ToString("yyyyMMdd-HHmmss")+".zip");
+			using(ZipArchive z=new ZipArchive(File.Create(zip),ZipArchiveMode.Create)){
+				if(File.Exists(CfgPath)) z.CreateEntryFromFile(CfgPath,"config.json");
+				if(File.Exists(DataBinPath)) z.CreateEntryFromFile(DataBinPath,"data.bin");
+				string nnp=Path.Combine(ExeDir,"data","nn.bin");
+				if(File.Exists(nnp)) z.CreateEntryFromFile(nnp,"nn.bin");
+			}
+			Log("import: preimport backup "+Path.GetFileName(zip));
+		} catch(Exception ex){ Log("preimport backup: "+ex.Message); }
+		Cfg=nc; D=nd; D.Nn=nnd;
+		if(j["medpk"] is JObject mp){
+			Dictionary<string,double[]> md=new Dictionary<string,double[]>();
+			foreach(KeyValuePair<string,JToken> kv in mp){
+				JArray a=kv.Value as JArray; if(a==null||a.Count<2) continue;
+				string k=NormMed(kv.Key); if(k=="") continue;
+				double h=(double?)a[0]??0,dd=(double?)a[1]??0;
+				if(h>0&&dd>0) md[k]=new[]{h,dd};
+			}
+			if(md.Count>0){ MedPkDb=md; SaveMedPk(); }
+		}
+		Save();// config.json + полная перезапись data.bin + SaveNn
+		EnsureNnDim();// размеры/лекарства из файла могут не совпадать -> пересборка размерности
+		return "измерений: "+D.M.Count+", эмоций: "+D.E.Count+", шумов: "+D.N.Count+", сна: "+D.S.Count+", приёмов: "+D.MedTakes.Count;
+	}
+
 	// ----------------------------- HTTP-сервер -----------------------------
 	static string ReadBody(HttpListenerRequest r){
 		using(StreamReader sr=new StreamReader(r.InputStream,Encoding.UTF8)) return sr.ReadToEnd();
@@ -1611,11 +1854,15 @@ static class App{
 	}
 	public static JObject StateJson(){
 		(double sys,double dia) p=PredictNow();
+		double kpFc=0; DateTime u0=DateTime.UtcNow;
+		foreach(KeyValuePair<DateTime,double> fp in KpForecast) if(fp.Key>=u0&&fp.Key<=u0.AddHours(24)&&fp.Value>kpFc) kpFc=fp.Value;
+		JObject wxJ=JObject.FromObject(Weather);
+		wxJ["kpForecast"]=Math.Round(kpFc,1);// прогнозный Kp (макс за 24 ч), 0 = нет данных
 		return new JObject{
 			["medPk"]=JObject.FromObject(Cfg.Meds.GroupBy(med=>med).ToDictionary(g=>g.Key,g=>{var kt=MedKtFor(g.Key);return new{half=kt.half,dur=kt.dur,known=MedPkDb.Any(kv=>NormMed(g.Key).Contains(kv.Key))};})),
 			["cfg"]=MaskToken(JObject.FromObject(Cfg)),
 			["autostart"]=GetAutostart(),
-			["weather"]=JObject.FromObject(Weather),
+			["weather"]=wxJ,
 			["measurements"]=JArray.FromObject(D.M.OrderByDescending(m=>m.T).ToList()),
 			["emotions"]=JArray.FromObject(D.E.OrderByDescending(e=>e.T).ToList()),
 			["noises"]=JArray.FromObject(D.N.OrderByDescending(e=>e.T).ToList()),
@@ -1626,7 +1873,9 @@ static class App{
 				["W1"]=JArray.FromObject(D.Nn.W1),["B1"]=JArray.FromObject(D.Nn.B1),["W1b"]=JArray.FromObject(D.Nn.W1b),["B1b"]=JArray.FromObject(D.Nn.B1b),				["W2"]=JArray.FromObject(D.Nn.W2),["B2"]=JArray.FromObject(D.Nn.B2),
 				["loss"]=JArray.FromObject(D.Nn.Loss.Skip(Math.Max(0,D.Nn.Loss.Count-300))),
 				["predict"]=new JObject{["sys"]=Math.Round(p.sys,1),["dia"]=Math.Round(p.dia,1)},
-				["validate"]=_lastValidation
+				["forecast"]=ForecastPredictions(12),
+				["validate"]=_lastValidation,
+				["tune"]=_lastTune
 			}
 		};
 	}
@@ -1658,7 +1907,7 @@ static class App{
 			// HEAD раньше не роутился: коннект висел до таймаута клиента. Отвечаем без тела.
 			if(req.HttpMethod=="HEAD"){
 				string hp=req.Url.AbsolutePath;
-				bool known=hp=="/"||hp=="/index.html"||hp=="/api/state"||hp=="/api/version"||hp=="/api/nn/predictions"||hp=="/api/job";
+				bool known=hp=="/"||hp=="/index.html"||hp=="/api/state"||hp=="/api/version"||hp=="/api/nn/predictions"||hp=="/api/job"||hp=="/api/export/all";
 				ctx.Response.StatusCode=known?200:405;
 				ctx.Response.ContentLength64=0;
 				ctx.Response.OutputStream.Close();
@@ -1672,16 +1921,16 @@ static class App{
 			// запуск фоновых задач — тоже вне lock(Sync): сама задача держит этот замок,
 			// а обработчик не должен за ним ждать (иначе «уже выполняется» никогда не сработает)
 			string jobPath=req.Url.AbsolutePath;
-			bool isGa=jobPath=="/api/nn/train_ga",isVal=jobPath=="/api/nn/validate";
-			if(req.HttpMethod=="POST"&&(isGa||isVal||jobPath=="/api/weather/backfill")){
+			bool isGa=jobPath=="/api/nn/train_ga",isVal=jobPath=="/api/nn/validate",isTune=jobPath=="/api/nn/tune";
+			if(req.HttpMethod=="POST"&&(isGa||isVal||isTune||jobPath=="/api/weather/backfill")){
 				string jb=ReadBody(req);
 				JObject jo=null; try{ jo=jb.Length>0?JObject.Parse(jb):new JObject(); }catch{}
-				if(!TryStartJob(isGa?"train_ga":isVal?"validate":"backfill")){ JsonResp(ctx.Response,new{ok=false,err="уже выполняется: "+_job.Name}); return; }
+				if(!TryStartJob(isGa?"train_ga":isVal?"validate":isTune?"tune":"backfill")){ JsonResp(ctx.Response,new{ok=false,err="уже выполняется: "+_job.Name}); return; }
 				Job job=_job;
 				DateTime? fu=null;
-				if(!isGa&&!isVal&&jo!=null&&jo["force_until"]!=null){ try{ fu=JT(jo,"force_until"); }catch{} }
+				if(!isGa&&!isVal&&!isTune&&jo!=null&&jo["force_until"]!=null){ try{ fu=JT(jo,"force_until"); }catch{} }
 				int holdout=0;
-				if(isVal&&jo!=null&&jo["holdout"]!=null){ int.TryParse((string)jo["holdout"],out holdout); }
+				if((isVal||isTune)&&jo!=null&&jo["holdout"]!=null){ int.TryParse((string)jo["holdout"],out holdout); }
 				Task.Run(()=>{
 					try{
 						lock(Sync){
@@ -1691,9 +1940,14 @@ static class App{
 								_lastValidation=r; SaveValidation();
 								job.Result="MAE сис="+((double)r["maeSys"]).ToString(CultureInfo.InvariantCulture)+" диаст="+((double)r["maeDia"]).ToString(CultureInfo.InvariantCulture)+" мм рт.ст.";
 							}
+							else if(isTune){
+								JObject r=Tune(holdout);
+								_lastTune=r; SaveTune();
+								job.Result="слои "+(int)r["hidden"]+"/"+(int)r["hidden2"]+", holdout MSE "+((double)r["holdMse"]).ToString(CultureInfo.InvariantCulture)+(r["changed"]!=null&&(bool)r["changed"]?" — применено":" — оставлены текущие");
+							}
 							else{ int nwx=BackfillWeather(fu); if(nwx>0){ Train(); SaveNn(); } job.Result="заполнено записей: "+nwx; }
 						}
-					} catch(Exception ex){ job.Error=ex.Message; Log((isGa?"train_ga":isVal?"validate":"backfill")+": "+ex.Message); }
+					} catch(Exception ex){ job.Error=ex.Message; Log((isGa?"train_ga":isVal?"validate":isTune?"tune":"backfill")+": "+ex.Message); }
 					finally{ job.Running=false; }
 				});
 				JsonResp(ctx.Response,new{ok=true,started=true});
@@ -1719,6 +1973,16 @@ static class App{
 					case"/api/nn/predictions":
 						JsonResp(ctx.Response,Predictions());
 						return;
+					case"/api/export/all":{
+						byte[] b=Encoding.UTF8.GetBytes(ExportAll().ToString(Newtonsoft.Json.Formatting.Indented));
+						string fname="bpmonitor-export-"+DateTime.Now.ToString("yyyyMMdd-HHmmss")+".json";
+						ctx.Response.ContentType="application/json; charset=utf-8";
+						ctx.Response.AddHeader("Content-Disposition","attachment; filename="+fname);
+						ctx.Response.ContentLength64=b.Length;
+						ctx.Response.OutputStream.Write(b,0,b.Length);
+						ctx.Response.OutputStream.Close();
+						return;
+					}
 					case"/api/version":
 						JsonResp(ctx.Response,new{version="2.0"});
 						return;
@@ -1913,6 +2177,12 @@ static class App{
 					JsonResp(ctx.Response,new{ok=true,count=nd.Count});
 					return;
 				}
+				case"/api/import/all":{
+					if(jo["confirm"]==null||!(bool)jo["confirm"]){ JsonResp(ctx.Response,new{ok=false,err="нужен confirm:true — импорт заменит все текущие данные"}); return; }
+					string summary=ImportAll(jo);
+					JsonResp(ctx.Response,new{ok=true,imported=summary});
+					return;
+				}
 				case"/api/storage/compact":{
 					long before=File.Exists(DataBinPath)?new FileInfo(DataBinPath).Length:0;
 					Save();// полная перезапись data.bin из D: tombstone и копии правок уходят
@@ -1992,8 +2262,9 @@ static class App{
 			DateTime t0=new DateTime(2026,8,22,12,0,0);// суббота
 			Measurement m=new Measurement{Id=Guid.NewGuid().ToString("N"),T=t0,Sys=120,Dia=80,Pulse=70};
 			double[] x=FeatsFor(m);
-			if(x.Length!=12) throw new Exception("InDim без лекарств = 12, получили "+x.Length);
+			if(x.Length!=13) throw new Exception("InDim без лекарств = 13, получили "+x.Length);
 			if(Math.Abs(x[8])>1e-9||Math.Abs(x[9])>1e-9||Math.Abs(x[10]-0.75)>1e-6) throw new Exception("нейтрали: эмоция 0, шум 0, сон 7.5ч");
+			if(Math.Abs(x[11])>1e-9) throw new Exception("нейтраль качества сна = 5 -> 0, x[11]="+x[11]);
 			if(Math.Abs(x[0]-Math.Sin(2*Math.PI*12/24))>1e-9) throw new Exception("час sin (12:00)");
 			double dow=((int)t0.DayOfWeek+6)%7;
 			if(Math.Abs(x[2]-Math.Sin(2*Math.PI*dow/7))>1e-9) throw new Exception("день sin");
@@ -2007,6 +2278,12 @@ static class App{
 			if(Math.Abs(x[8]-0.6)>1e-6) throw new Exception("эмоция +5 мин должна учитываться, x[8]="+x[8]);
 			if(Math.Abs(x[9]-0.25)>1e-6) throw new Exception("шум: 1 тип/4, x[9]="+x[9]);
 			if(Math.Abs(x[10]-0.8)>1e-6) throw new Exception("сон 8ч -> 0.8, x[10]="+x[10]);
+			if(Math.Abs(x[11])>1e-6) throw new Exception("качество 5 -> нейтраль 0, x[11]="+x[11]);
+			D.S.Clear();
+			D.S.Add(new SleepEntry{Id=Guid.NewGuid().ToString("N"),T=t0.AddHours(-20),Hours=8,Quality=8});
+			x=FeatsFor(m);
+			if(Math.Abs(x[11]-0.6)>1e-6) throw new Exception("качество 8 -> (8-5)/5=0.6, x[11]="+x[11]);
+			D.S.Clear();
 			D.E.Clear();
 			D.E.Add(new EmotionEntry{Id=Guid.NewGuid().ToString("N"),T=t0.AddHours(-13),Val=-8});// вне окна 12ч
 			x=FeatsFor(m);
@@ -2019,14 +2296,14 @@ static class App{
 			Measurement m=new Measurement{Id=Guid.NewGuid().ToString("N"),T=t0,Sys=120,Dia=80,Pulse=70,Meds=new List<string>{"тестмед"}};
 			D.M.Add(m);
 			double[] x=FeatsFor(m);
-			if(x.Length!=14) throw new Exception("InDim с 1 лекарством = 14");
-			if(Math.Abs(x[12]-1.0/3)>1e-6) throw new Exception("приём в момент t: conc=1 -> 1/3, x[12]="+x[12]);
-			if(Math.Abs(x[13]-1.0)>1e-6) throw new Exception("в окне действия -> 1, x[13]="+x[13]);
+			if(x.Length!=15) throw new Exception("InDim с 1 лекарством = 15");
+			if(Math.Abs(x[13]-1.0/3)>1e-6) throw new Exception("приём в момент t: conc=1 -> 1/3, x[13]="+x[13]);
+			if(Math.Abs(x[14]-1.0)>1e-6) throw new Exception("в окне действия -> 1, x[14]="+x[14]);
 			double[] x2=FeatsFor(new Measurement{Id=Guid.NewGuid().ToString("N"),T=t0.AddHours(8),Sys=120,Dia=80});
-			if(Math.Abs(x2[12]-0.5/3)>1e-6) throw new Exception("через T½=8ч: conc=0.5 -> 1/6, x[12]="+x2[12]);
-			if(Math.Abs(x2[13]-(1.0-8.0/12))>1e-6) throw new Exception("окно dur=12ч: win=1-8/12, x[13]="+x2[13]);
+			if(Math.Abs(x2[13]-0.5/3)>1e-6) throw new Exception("через T½=8ч: conc=0.5 -> 1/6, x[13]="+x2[13]);
+			if(Math.Abs(x2[14]-(1.0-8.0/12))>1e-6) throw new Exception("окно dur=12ч: win=1-8/12, x[14]="+x2[14]);
 			double[] x3=FeatsFor(new Measurement{Id=Guid.NewGuid().ToString("N"),T=t0.AddHours(13),Sys=120,Dia=80});
-			if(Math.Abs(x3[13])>1e-9) throw new Exception("за окном действия -> 0");
+			if(Math.Abs(x3[14])>1e-9) throw new Exception("за окном действия -> 0");
 		});
 		check("Validate: holdout-раздел + метрики + значимость",()=>{
 			Cfg=new Config(); Cfg.Meds=new List<string>();
@@ -2124,8 +2401,8 @@ static class App{
 			if(!ints.TryGetValue("тестмед",out ts)||ts.Count!=2) throw new Exception("union: "+(ts==null?0:ts.Count));
 			// at t0+8h: conc = 0.5^(8/8) + 0.5^0 = 1.5 -> x=min(1.5,3)/3 = 0.5 (тестмед удалён из medpk -> дефолт 8/12)
 			double[] x=FeatsFor(new Measurement{Id=Guid.NewGuid().ToString("N"),T=t0.AddHours(8),Sys=120,Dia=80});
-			if(Math.Abs(x[12]-0.5)>1e-6) throw new Exception("PK-фича по двум приёмам: x[12]="+x[12]);
-			if(Math.Abs(x[13]-1.0)>1e-6) throw new Exception("окно действия свежего приёма -> 1, x[13]="+x[13]);
+			if(Math.Abs(x[13]-0.5)>1e-6) throw new Exception("PK-фича по двум приёмам: x[13]="+x[13]);
+			if(Math.Abs(x[14]-1.0)>1e-6) throw new Exception("окно действия свежего приёма -> 1, x[14]="+x[14]);
 		});
 		check("DailyBackup: архив создаётся один раз в сутки",()=>{
 			string bdir=Path.Combine(ExeDir,"backups");
@@ -2136,6 +2413,54 @@ static class App{
 			using(ZipArchive z=ZipFile.OpenRead(z1[0])) if(z.Entries.Count==0) throw new Exception("пустой архив");
 			DailyBackup();
 			if(Directory.GetFiles(Path.Combine(ExeDir,"backups"),"*.zip").Length!=1) throw new Exception("второй вызов за сутки не должен плодить архивы");
+		});
+		check("Tune: сетка гиперпараметров и выбор",()=>{
+			Cfg=new Config(); Cfg.Meds=new List<string>();
+			D=new DataStore();
+			Random r=new Random(11);
+			DateTime t0=new DateTime(2026,9,1,8,0,0);
+			for(int i=0;i<60;i++){
+				float press=740+r.Next(0,40);
+				D.M.Add(new Measurement{Id=Guid.NewGuid().ToString("N"),T=t0.AddHours(i*8.0),Sys=(int)(press-620),Dia=80,Pulse=70,PressMm=press});
+			}
+			JObject t=Tune(12);
+			if((int)t["nTrain"]!=48||(int)t["nHold"]!=12) throw new Exception("раздел 48/12");
+			JArray res=(JArray)t["results"];
+			if(res.Count!=9) throw new Exception("конфигураций сетки: "+res.Count+" (ожидалось 9)");
+			int bestH=(int)t["hidden"],bestH2=(int)t["hidden2"];
+			if(new[]{16,28,40}.Contains(bestH)==false||new[]{10,16,24}.Contains(bestH2)==false) throw new Exception("лучшая конфигурация вне сетки: "+bestH+"/"+bestH2);
+			if(Cfg.Nn.Hidden!=bestH||Cfg.Nn.Hidden2!=bestH2) throw new Exception("лучшая конфигурация не применена в Cfg.Nn");
+			if(D.Nn.W1.GetLength(0)!=bestH||D.Nn.W1b.GetLength(0)!=bestH2) throw new Exception("рабочая модель не пересобрана под выбранные размеры");
+			// отсортировано по возрастанию holdMse, лучший — первый
+			if((double)res[0]["holdMse"]>(double)res[res.Count-1]["holdMse"]) throw new Exception("результаты не отсортированы по holdMse");
+		});
+		check("Экспорт/импорт всего: round-trip",()=>{
+			Cfg=new Config(); Cfg.Meds=new List<string>{"эналаприл"}; Cfg.NormSys=140;
+			D=new DataStore();
+			D.Nn=NewNn(Cfg.Nn.Hidden,Cfg.Nn.Hidden2,InDim());
+			DateTime t0=new DateTime(2026,8,22,12,0,0);
+			D.M.Add(new Measurement{Id=Guid.NewGuid().ToString("N"),T=t0,Sys=130,Dia=85,Pulse=72,Note="первое",Meds=new List<string>{"эналаприл"},PressMm=755f,Kp=33});
+			D.M.Add(new Measurement{Id=Guid.NewGuid().ToString("N"),T=t0.AddHours(3),Sys=125,Dia=80,Pulse=70});
+			D.E.Add(new EmotionEntry{Id=Guid.NewGuid().ToString("N"),T=t0,Val=4,Note="ок"});
+			D.N.Add(new NoiseEntry{Id=Guid.NewGuid().ToString("N"),T=t0,Type="стройка"});
+			D.S.Add(new SleepEntry{Id=Guid.NewGuid().ToString("N"),T=t0,Hours=7,Quality=6});
+			D.MedTakes.Add(new MedTakeEntry{Id=Guid.NewGuid().ToString("N"),T=t0,Med="эналаприл"});
+			D.LastPopup=new DateTime(2026,8,21,9,0,0);
+			JObject dump=ExportAll();
+			string text=dump.ToString(Newtonsoft.Json.Formatting.None);
+			// «перенос на другой ПК»: чистое состояние -> импорт
+			Cfg=new Config(); D=new DataStore(); D.Nn=NewNn(4,4,InDim());
+			string summary=ImportAll(JObject.Parse(text));
+			if(D.M.Count!=2||D.E.Count!=1||D.N.Count!=1||D.S.Count!=1||D.MedTakes.Count!=1) throw new Exception("после импорта: "+summary);
+			if(Cfg.NormSys!=140||!Cfg.Meds.Contains("эналаприл")) throw new Exception("конфиг не восстановлен");
+			Measurement m=D.M.OrderBy(x=>x.T).First();
+			if(m.Sys!=130||m.Note!="первое"||m.Kp!=33||m.Meds.Count!=1) throw new Exception("измерение потеряно/испорчено");
+			if(D.LastPopup==null||D.LastPopup.Value!=new DateTime(2026,8,21,9,0,0)) throw new Exception("LastPopup");
+			if(D.Nn.W1.GetLength(1)!=InDim()) throw new Exception("размерность модели после импорта: "+D.Nn.W1.GetLength(1)+" != "+InDim());
+			if(!File.Exists(DataBinPath)||!IsBpmn(DataBinPath)) throw new Exception("data.bin после импорта не переписан");
+			// чужой файл отвергается
+			try{ ImportAll(JObject.Parse("{\"app\":\"other\",\"ver\":1}")); throw new Exception("чужой файл должен отвергаться"); }
+			catch(Exception ex){ if(ex.Message=="чужой файл должен отвергаться") throw; }
 		});
 		Thread.CurrentThread.CurrentCulture=savedCulture;
 		Console.WriteLine(failed==0?"SELFTEST OK":"SELFTEST FAILED: "+failed);
