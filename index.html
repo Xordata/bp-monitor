@@ -220,6 +220,7 @@ canvas{max-width:100%;border:1px solid var(--bd);background:#fff}
         <label>Долгота <input type="number" step="0.0001" id="c-lon" style="width:92px"></label>
         <label>Опрос погоды, мин <input type="number" id="c-poll" style="width:60px"></label>
         <button id="c-wxb" onclick="wxBackfill()" title="Подтянуть погоду и Kp из архива для старых записей, где они пустые">Заполнить погоду</button>
+        <button onclick="compactDb()" title="Переписать data.bin из текущего состояния: удалить тумстоуны и копии правок">Сжать базу</button>
         <label>mp3-файл <input id="c-alarm" style="width:140px"></label>
         <label>Напоминать, мин до <input type="number" id="c-ahead" style="width:60px"></label>
       </div>
@@ -360,12 +361,27 @@ function renderHeader(){
   }
 }
 async function refreshWx(){await apiPost("/api/weather/refresh");flash("Погода обновляется…");setTimeout(loadState,2000);}
+/* ждём завершения фоновой задачи (train_ga/backfill): прогресс живёт на сервере,
+   закрытие вкладки его не убивает — можно вернуться и открыть страницу заново */
+async function waitJob(name){
+  for(let i=0;i<800;i++){
+    await new Promise(r=>setTimeout(r,1500));
+    let s;try{s=await (await fetch("/api/job")).json();}catch(e){continue;}
+    if(!s.running){
+      if(s.error)flash(name+" — ошибка: "+s.error,false,8000);
+      else flash(name+" готово"+(s.result?": "+s.result:""),true,6000);
+      return;
+    }
+    flash(name+"…"+(s.total>0?" "+s.done+"/"+s.total:" это ~20 с"),true,600000);
+  }
+  flash(name+": долго, обновите страницу позже",false,6000);
+}
 async function wxBackfill(){
-  flash("Заполняю погоду из архива… это может занять минуту",true,600000);
-  try{const j=await apiPost("/api/weather/backfill");
-    if(j.ok) flash(j.updated>0?("Готово: заполнено записей — "+j.updated):"Все записи уже с погодой — заполнять нечего",true,6000);
-    else flash("Ошибка: "+(j.err||"?"),false,6000);
-  }catch(e){flash("Ошибка: "+e,false,6000);} loadState();}
+  const j=await apiPost("/api/weather/backfill");
+  if(!j.ok){flash("Ошибка: "+(j.err||"?"),false,6000);return;}
+  await waitJob("Заполняю погоду из архива");loadState();}
+async function compactDb(){const j=await apiPost("/api/storage/compact");
+  flash(j.ok?("База сжата: "+j.before+" → "+j.after+" байт"):("Ошибка: "+(j.err||"?")),!!j.ok,6000);}
 
 /* ---------- измерение ---------- */
 function renderMeas(){
@@ -555,8 +571,9 @@ function drawLoss(){
 }
 async function nnTrain(){flash("Обучение…");await apiPost("/api/nn/train");setTimeout(loadState,800);flash("Обучено");}
 async function nnTrainGa(){if(!confirm("Генетическое обучение: дольше, но может уйти из локального минимума. Продолжить?"))return;
-  flash("Генетическое обучение…");const j=await apiPost("/api/nn/train_ga");setTimeout(loadState,800);
-  flash(j.ok?("Готово. MSE="+j.loss):("Ошибка: "+(j.err||"?")),!!j.ok);}
+  const j=await apiPost("/api/nn/train_ga");
+  if(!j.ok){flash("Ошибка: "+(j.err||"?"),false,6000);return;}
+  await waitJob("Генетическое обучение");loadState();}
 function nnReset(){if(!confirm("Сбросить модель? Выученные веса будут потеряны."))return;
   apiPost("/api/nn/reset").then(()=>{flash("Модель сброшена");loadState();});}
 

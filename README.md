@@ -10,6 +10,7 @@
 ```
 dotnet build
 bin\Debug\net481\BpMonitor.exe
+bin\Debug\net481\BpMonitor.exe --selftest   # самотест (временный каталог, данные не трогает)
 ```
 
 Откроется иконка в трее. Интерфейс: **http://localhost:8090/**
@@ -77,8 +78,10 @@ bin\Debug\net481\BpMonitor.exe
 - `data.bin` — append-only журнал записей (магический заголовок `BPMN`, v2, строковый пул, тумстоуны удаления).
 - `nn.bin` — веса нейросети (формат v3: два скрытых слоя).
 - `config.json` — настройки.
+- `data\logs\yyyyMMdd.log` — служебный лог (ошибки погоды/Kp/бэкапа/задач, ротация при >5 МБ).
+- `backups\yyyyMMdd.zip` — автоматическая суточная резервная копия `config.json + data.bin + nn.bin` (при старте и раз в час, хранятся последние 30).
 
-Резервные копии: просто скопировать папку `data/` и `config.json`.
+Компакция `data.bin` (убрать tombstone и копии правок): кнопка «Сжать базу» в настройках или `POST /api/storage/compact`.
 
 ## API (все POST принимают JSON, сервер слушает только localhost + проверяет same-origin)
 
@@ -93,8 +96,10 @@ bin\Debug\net481\BpMonitor.exe
 | `POST /api/sleep/import` | CSV Mi Band |
 | `GET /api/nn/predictions` | прогноз НН по каждой записи |
 | `POST /api/nn/train` / `/api/nn/train_ga` / `/api/nn/reset` | обучение SGD / генетическое / сброс |
+| `GET /api/job` | статус фоновой задачи (train_ga/backfill): running, name, done/total, result, error |
 | `POST /api/weather/refresh` | опросить погоду сейчас |
-| `POST /api/weather/backfill` | дозаполнить погоду; опционально `{"force_until":"ISO-дата"}` — принудительная перезапись до даты |
+| `POST /api/weather/backfill` | дозаполнить погоду (фоновая задача, прогресс в `/api/job`); опционально `{"force_until":"ISO-дата"}` — принудительная перезапись до даты |
+| `POST /api/storage/compact` | компакция `data.bin` (переписать из текущего состояния, убрать tombstone/копии правок) |
 | `POST /api/config` | сохранение конфига (merge: присланные поля заменяются, остальные сохраняются) |
 | `POST /api/autostart` | `{on}` — автозапуск из реестра |
 | `POST /api/alarm/test` / `/api/alarm/stop` | звук будильника |

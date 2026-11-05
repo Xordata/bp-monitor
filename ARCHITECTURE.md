@@ -17,16 +17,18 @@
 │   ├─ GET  /api/state   → StateJson(): cfg+данные+НН+погода одним снимком         │
 │   └─ POST /api/…       → мутация D/Cfg → append в data.bin → Train/SaveNn        │
 │                                                                                  │
-│  Фоновые async-задачи (Task.Run / async void):                                   │
-│   ├─ PollWeather(): open-meteo current + GFZ Kp + HA-датчики → Weather           │
+│  Фоновые async-задачи (Task.Run / async Task):                                   │
+│   ├─ PollWeatherAsync(): open-meteo current + GFZ Kp + HA-датчики → Weather      │
 │   ├─ FetchWxDayAsync(): архив погоды/Kp для исторических дат                     │
+│   ├─ фоновые задачи /api/nn/train_ga и /api/weather/backfill (статус в /api/job) │
 │   └─ NAudio.WaveOut: зацикленный mp3 будильника                                  │
 └──────────────────────────────────────────────────────────────────────────────────┘
         ↕ lock(Sync) — консистентность D/Cfg; lock(Io) — запись в data.bin
    data/config.json | data/data.bin (append-only) | data/nn.bin (веса v3)
+   data/logs/yyyyMMdd.log (лог) | backups/yyyyMMdd.zip (суточный автобэкап)
 ```
 
-Блокировок UI-потока нет: все сетевые вызовы из UI-обработчиков идут в фоновые задачи; HTTP-обработчики живут на пуле потоков и могут блокироваться (например, `BackfillWeather` синхронно дёргает архив ~35 с).
+Блокировок UI-потока нет: все сетевые вызовы из UI-обработчиков идут в фоновые задачи. Долгие операции (GA-обучение ~20 с, `BackfillWeather` до минут) выполняются фоновой задачей с прогрессом в `GET /api/job` — HTTP-ответ по POST возвращается сразу.
 
 ## Модули внутри BpMonitor.cs
 
@@ -111,7 +113,8 @@ POST /api/measurement {t,sys,dia,pulse,note,meds[]}
 - **Исходник смешанной кодировки**: CRLF/LF вперемешку + UTF-8 BOM. Правки сплайсом по строкам должны сохранять EOL каждой строки и BOM.
 - **Newtonsoft Date JValue**: `JObject.Parse` превращает ISO-строки **с секундами** в Date-JValue; `.ToString()` у него идёт через текущую культуру (ru: «22.08.2026») → инвариантный парсер меняет день/месяц. Все даты из JSON читаются хелпером `JT()`.
 - **POST без тела** → HttpListener отвечает 411; UI всегда шлёт `{}`.
-- **HEAD-запросы не обрабатываются** (висит коннект) — в TODO.
+- **HEAD-запросы** обрабатываются отдельно в начале `Handle`: 200 для известных GET-путей, 405 для прочих, тело не пишется.
+- **GET /api/job и запуск фоновых задач (train_ga/backfill) обрабатываются до `lock(Sync)`**: сама задача держит этот замок минутами; обработчик не должен за ним ждать, иначе ответ «уже выполняется» недостижим.
 - `taskkill` из git-bash сюда не пробивается (MSYS-магия), надёжно: `powershell Stop-Process -Name BpMonitor -Force`.
 - Экспонированные Windows-утилиты печатают CRLF — при скармливании вывода bash-циклам обрезать `\r`.
 - Сборка не проходит при запущенном exe (блокирует bin) — сначала убить процесс.
@@ -123,4 +126,4 @@ dotnet build                    # net481, требует .NET Framework 4.8.1 ta
 bin\Debug\net481\BpMonitor.exe  # index.html и alarm.mp3 копируются в bin (csproj PreserveNewest)
 ```
 
-Правки только HTML подхватываются на лету (файл читается на каждый запрос) — достаточно скопировать `index.html` в `bin\Debug\net481\`. Правки C# требуют kill+build+restart. Git-репозиторий не заведён (см. TODO). Тестов — нет (см. TODO); ручная проверка UI делалась через браузер-автоматизацию.
+Правки только HTML подхватываются на лету (файл читается на каждый запрос) — достаточно скопировать `index.html` в `bin\Debug\net481\`. Правки C# требуют kill+build+restart. Git-репозиторий заведён (`bin/`, `obj/`, `data/`, `config.json`, `backups/` в `.gitignore`). Тесты: `BpMonitor.exe --selftest` — 10 проверок ядра в песочнице (см. `App.SelfTest`); ручная проверка UI делалась через браузер-автоматизацию.
