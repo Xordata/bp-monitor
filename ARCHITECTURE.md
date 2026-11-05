@@ -38,7 +38,7 @@
 | **Хранилище** | `Load()/SaveCfg()/LoadBin()/AppendXxx()` — бинарный журнал + config.json |
 | **НН** | `NewNn/Forward/FeatsFor/Train/TrainGenetic/Pack/Unpack/EnsureNnDim/SaveNn/LoadNn` |
 | **Погода** | `PollWeather` (живой кэш `Weather`), `FetchWxDay/FillWx/BackfillWeather` (архив), `MaybePopup` |
-| **ФК лекарств** | `MedPkDb` (справочник T½/длительности), `MedKtFor`, `MedIntakes`, PK-фичи |
+| **ФК лекарств** | `MedPkDb` (справочник T½/длительности, грузится из `medpk.json` рядом с exe; при отсутствии — эталон `MedPkDefault`), `MedKtFor`, `MedIntakes` (union отметок приёма `D.MedTakes` и лекарств с измерений), PK-фичи; `CheckMedReminders` — балюны по `Cfg.MedTimes` |
 | **Контекст** | `EmotionAt/NoiseAt/SleepAt` (окна join для НН), `Snapshot/SnapshotContext` |
 | **Будильники** | `CheckAlarms` (окно догона 30 мин, напоминания), `StartAlarm/StopAlarm` (NAudio) |
 | **HTTP** | `Handle(ctx)` — роут по `switch(path)`, `JsonResp`, `IsLocalSameOrigin` |
@@ -67,7 +67,7 @@ POST /api/measurement {t,sys,dia,pulse,note,meds[]}
 ### data.bin — append-only журнал (v2, магический `BPMN`)
 - Заголовок: `BPMN` + версия.
 - Строковый пул (id→string) для экономии на повторах (заметки, типы шума, лекарства).
-- Типы записей: `RecMeas=0x10`, `RecMeasDel=0x11`, `RecEmo=0x20/Del=0x21`, `RecNoi=0x30/Del=0x31`, `RecSleep=0x40/Del=0x41`, `RecPopup=0x50`.
+- Типы записей: `RecMeas=0x10`, `RecMeasDel=0x11`, `RecEmo=0x20/Del=0x21`, `RecNoi=0x30/Del=0x31`, `RecSleep=0x40/Del=0x41`, `RecPopup=0x50`, `RecMedTake=0x60/Del=0x61` (отметки приёма лекарств).
 - Правка = дописывание полной копии записи (последняя выигрывает при загрузке); удаление = тумстоун по Guid.
 - Потокозапись: `lock(Io)`, каждый append — открыть/дописать/закрыть (устойчиво к убийству процесса).
 - `data.json.old-*` — остатки миграции из старого JSON-формата.

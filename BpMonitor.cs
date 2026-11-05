@@ -44,6 +44,11 @@ public class MedKt{
 	public double HalfH=8;// период полувыведения, ч
 	public double DurH=12;// длительность действия, ч
 }
+public class MedTakeEntry{
+	public string Id;
+	public DateTime T;
+	public string Med;
+}
 public class HaCfg{
 	public string Url="";
 	public string Token="";
@@ -70,6 +75,7 @@ public class Config{
 	public List<AlarmDef> Alarms=new List<AlarmDef>{new AlarmDef{Time="08:00",Label="утро"},new AlarmDef{Time="20:00",Label="вечер"}};
 	public List<string> Meds=new List<string>();
 	public Dictionary<string,MedKt> MedKt=new Dictionary<string,MedKt>();// PK-переопределения по названию (реестр нечувствителен к регистру)
+	public Dictionary<string,List<string>> MedTimes=new Dictionary<string,List<string>>();// расписание напоминаний о приёме: норм.название -> ["08:00","20:00"]
 	public List<string> Noises=new List<string>{
 		"сосед с перфоратором","гонки стритрейсеров под окнами","пьяная вечеринка с танцами над головой",
 		"громкая музыка у соседей","стройка / ремонт","лающая собака","салют / громкие взрывы","самолёт низко над домом","тихо / ничего"
@@ -129,6 +135,7 @@ public class DataStore{
 	public List<EmotionEntry> E=new List<EmotionEntry>();
 	public List<NoiseEntry> N=new List<NoiseEntry>();
 	public List<SleepEntry> S=new List<SleepEntry>();
+	public List<MedTakeEntry> MedTakes=new List<MedTakeEntry>();
 	public NnModel Nn;
 	public DateTime? LastPopup;
 	public static string EmotionLabel(int v){
@@ -238,6 +245,7 @@ static class App{
 		IndexPath=Path.Combine(ExeDir,"index.html");
 	}
 	public static void Load(){
+		LoadMedPk();// справочник ФК нужен до EnsureNnDim/Train (PK-фичи)
 		try{
 			if(File.Exists(CfgPath))
 				Cfg=JsonConvert.DeserializeObject<Config>(File.ReadAllText(CfgPath,Encoding.UTF8),JSONSettings)??new Config();
@@ -324,6 +332,7 @@ static class App{
 					foreach(EmotionEntry e in D.E.OrderBy(x=>x.T)) WriteRec(w,RecEmo,EmoPayload(e,pool));
 					foreach(NoiseEntry n2 in D.N.OrderBy(x=>x.T)) WriteRec(w,RecNoi,NoiPayload(n2,pool));
 					foreach(SleepEntry s2 in D.S.OrderBy(x=>x.T)) WriteRec(w,RecSleep,SleepPayload(s2,pool));
+					foreach(MedTakeEntry mt in D.MedTakes.OrderBy(x=>x.T)) WriteRec(w,RecMedTake,MedTakePayload(mt,pool));
 					if(D.LastPopup!=null) WriteRec(w,RecPopup,RecPayload(w2=>w2.Write(D.LastPopup.Value.Ticks)));
 				}
 				if(File.Exists(DataBinPath)) File.Delete(DataBinPath);
@@ -372,7 +381,7 @@ static class App{
 	// data.bin только при компакции/миграции. nn.bin — модель, маленькая, переписывается всегда.
 	const uint BinMagic=0x4E4D5042;// "BPMN"
 	const byte BinVer=2;
-	const byte RecStr=1,RecMeas=0x10,RecMeasDel=0x11,RecEmo=0x20,RecEmoDel=0x21,RecNoi=0x30,RecNoiDel=0x31,RecSleep=0x40,RecSleepDel=0x41,RecPopup=0x50;
+	const byte RecStr=1,RecMeas=0x10,RecMeasDel=0x11,RecEmo=0x20,RecEmoDel=0x21,RecNoi=0x30,RecNoiDel=0x31,RecSleep=0x40,RecSleepDel=0x41,RecPopup=0x50,RecMedTake=0x60,RecMedTakeDel=0x61;
 	static Dictionary<string,int> _pool=new Dictionary<string,int>();
 	static int _poolNext;
 	static int _logRecords;
@@ -442,6 +451,13 @@ static class App{
 			byte[] nb=Encoding.UTF8.GetBytes(s2.Note??""); w.Write((ushort)nb.Length); w.Write(nb);
 		});
 	}
+	static byte[] MedTakePayload(MedTakeEntry mt,Func<string,int> pool){
+		return RecPayload(w=>{
+			Guid g; Guid.TryParse(mt.Id,out g);
+			w.Write(g.ToByteArray()); w.Write(mt.T.Ticks);
+			w.Write((ushort)pool(mt.Med??""));
+		});
+	}
 	static BinaryWriter OpenAppend(){
 		Directory.CreateDirectory(Path.GetDirectoryName(DataBinPath)??"");
 		bool fresh=!File.Exists(DataBinPath)||new FileInfo(DataBinPath).Length==0;
@@ -456,6 +472,7 @@ static class App{
 	static void AppendEmotion(EmotionEntry e){ lock(Io){ try{ using(BinaryWriter w=OpenAppend()) WriteRec(w,RecEmo,EmoPayload(e,PoolWriter(w))); } catch{} } }
 	static void AppendNoise(NoiseEntry n2){ lock(Io){ try{ using(BinaryWriter w=OpenAppend()) WriteRec(w,RecNoi,NoiPayload(n2,PoolWriter(w))); } catch{} } }
 	static void AppendSleep(SleepEntry s2){ lock(Io){ try{ using(BinaryWriter w=OpenAppend()) WriteRec(w,RecSleep,SleepPayload(s2,PoolWriter(w))); } catch{} } }
+	static void AppendMedTake(MedTakeEntry mt){ lock(Io){ try{ using(BinaryWriter w=OpenAppend()) WriteRec(w,RecMedTake,MedTakePayload(mt,PoolWriter(w))); } catch{} } }
 	static void AppendGuidRec(byte type,string id){ Guid g; if(Guid.TryParse(id,out g)) AppendRec(type,RecPayload(w=>w.Write(g.ToByteArray()))); }
 	static void AppendPopup(){ if(D.LastPopup!=null) AppendRec(RecPopup,RecPayload(w=>w.Write(D.LastPopup.Value.Ticks))); }
 	static bool SameId(string id,Guid g){ Guid g2; return Guid.TryParse(id,out g2)&&g2==g; }
@@ -524,6 +541,13 @@ static class App{
 							D.S.Add(new SleepEntry{Id=g.ToString("N"),T=t,Hours=hours,Quality=q,Note=note});
 						}
 						else if(type==RecSleepDel){ Guid g=new Guid(p.ReadBytes(16)); D.S.RemoveAll(x=>SameId(x.Id,g)); }
+						else if(type==RecMedTake){
+							Guid g=new Guid(p.ReadBytes(16)); DateTime t=new DateTime(p.ReadInt64());
+							string med=GetPool(pool,p.ReadUInt16());
+							D.MedTakes.RemoveAll(x=>SameId(x.Id,g));
+							D.MedTakes.Add(new MedTakeEntry{Id=g.ToString("N"),T=t,Med=med});
+						}
+						else if(type==RecMedTakeDel){ Guid g=new Guid(p.ReadBytes(16)); D.MedTakes.RemoveAll(x=>SameId(x.Id,g)); }
 						else if(type==RecPopup) D.LastPopup=new DateTime(p.ReadInt64());
 						// неизвестный тип — пропущен (задел на будущее)
 					}
@@ -596,7 +620,8 @@ static class App{
 	// T½ / длительность действия, часы. Источники: StatPearls NCBI NBK554579, DailyMed,
 	// PMC8109523 (АКК), SmPC бисопролола, Br J Clin Pharmacol (метотрексат низкие дозы).
 	// Значения по умолчанию для неизвестных: 8/12 ч — правятся руками в UI.
-	static readonly Dictionary<string,double[]> MedPkDb=new Dictionary<string,double[]>{
+	// Встроенный эталон (StatPearls/DailyMed и др.) — пишется в medpk.json при первом запуске.
+	static readonly Dictionary<string,double[]> MedPkDefault=new Dictionary<string,double[]>{
 		{"каптоприл",new[]{2.0,8.0}},{"эналаприл",new[]{11.0,24.0}},{"лизиноприл",new[]{12.0,24.0}},
 		{"рамиприл",new[]{15.0,24.0}},{"периндоприл",new[]{24.0,24.0}},
 		{"амлодипин",new[]{40.0,36.0}},{"нифедипин",new[]{2.0,8.0}},{"фелодипин",new[]{14.0,24.0}},
@@ -618,6 +643,30 @@ static class App{
 		{"капозид",new[]{2.0,8.0}},{"телинстар",new[]{24.0,24.0}},{"ко-диован",new[]{7.0,24.0}},
 		{"крестор",new[]{19.0,24.0}},{"розувастатин",new[]{19.0,24.0}},{"аторвастатин",new[]{14.0,24.0}}
 	};
+	// Рабочий справочник: грузится из medpk.json рядом с exe (правится без пересборки —
+	// руками или во вкладке «Лекарства»); при отсутствии/битости файла создаётся из эталона.
+	static Dictionary<string,double[]> MedPkDb=new Dictionary<string,double[]>(MedPkDefault);
+	static string MedPkPath{ get{ return Path.Combine(ExeDir,"medpk.json"); } }
+	public static void LoadMedPk(){
+		try{
+			if(File.Exists(MedPkPath)){
+				JObject j=JObject.Parse(File.ReadAllText(MedPkPath,Encoding.UTF8));
+				Dictionary<string,double[]> nd=new Dictionary<string,double[]>();
+				foreach(KeyValuePair<string,JToken> kv in j){
+					JArray a=kv.Value as JArray; if(a==null||a.Count<2) continue;
+					string k=NormMed(kv.Key); if(k=="") continue;
+					double h=(double?)a[0]??0,d=(double?)a[1]??0;
+					if(h>0&&d>0) nd[k]=new[]{h,d};
+				}
+				if(nd.Count>0){ MedPkDb=nd; return; }
+			}
+		} catch{ Quarantine(MedPkPath); }// битый справочник спасён от перезаписи, ставим эталон
+		MedPkDb=new Dictionary<string,double[]>(MedPkDefault);
+		SaveMedPk();
+	}
+	public static void SaveMedPk(){
+		lock(Io){ try{ File.WriteAllText(MedPkPath,JsonConvert.SerializeObject(MedPkDb,Formatting.Indented)); } catch{} }
+	}
 	static string NormMed(string s){
 		return new string((s??"").ToLowerInvariant().Replace('ё','е').Where(char.IsLetterOrDigit).ToArray());
 	}
@@ -630,15 +679,18 @@ static class App{
 			if(n==kv.Key||n.Contains(kv.Key)) return (kv.Value[0],kv.Value[1]);
 		return (8.0,12.0);
 	}
-	// времена приёма каждого лекарства: приём фиксируется в измерении, где оно отмечено
+	// времена приёма каждого лекарства: отметки приёма (журнал «Лекарства») + лекарства,
+	// отмеченные на измерениях. Фичи НН строятся на фактических приёмах, а не только на ручном вводе
 	static Dictionary<string,List<DateTime>> MedIntakes(){
 		Dictionary<string,List<DateTime>> d=new Dictionary<string,List<DateTime>>();
-		foreach(Measurement m in D.M) foreach(string s in m.Meds){
-			string k=NormMed(s); if(k=="") continue;
+		Action<string,DateTime> add=(s,tt)=>{
+			string k=NormMed(s); if(k=="") return;
 			List<DateTime> l;
 			if(!d.TryGetValue(k,out l)){l=new List<DateTime>();d[k]=l;}
-			l.Add(m.T);
-		}
+			l.Add(tt);
+		};
+		foreach(Measurement m in D.M) foreach(string s in m.Meds) add(s,m.T);
+		foreach(MedTakeEntry mt in D.MedTakes) add(mt.Med,mt.T);
 		return d;
 	}
 	// размерность входа зависит от списка лекарств; при изменении — переучиваем модель с нуля
@@ -1208,6 +1260,32 @@ static class App{
 		}
 	}
 
+	// ----------------------------- напоминания о приёме лекарств -----------------------------
+	static readonly HashSet<string> MedFired=new HashSet<string>();
+	public static void CheckMedReminders(NotifyIcon ni){
+		if(Cfg.MedTimes==null||Cfg.MedTimes.Count==0) return;
+		DateTime now=DateTime.Now;
+		string today=now.ToString("yyyyMMdd");
+		MedFired.RemoveWhere(k=>!k.StartsWith(today));
+		foreach(KeyValuePair<string,List<string>> kv in Cfg.MedTimes){
+			if(kv.Value==null) continue;
+			string med=Cfg.Meds.FirstOrDefault(x=>NormMed(x)==kv.Key)??kv.Key;
+			foreach(string tm in kv.Value){
+				string[] parts=(tm??"").Trim().Split(':');
+				if(parts.Length!=2) continue;
+				if(!int.TryParse(parts[0],out int hh)||!int.TryParse(parts[1],out int mm)) continue;
+				if(hh>23||mm>59) continue;
+				string key=today+"_md_"+kv.Key+"_"+tm;
+				if(MedFired.Contains(key)) continue;
+				DateTime target=now.Date.AddHours(hh).AddMinutes(mm);
+				if(now>=target&&now-target<=TimeSpan.FromMinutes(30)){// окно догона, как у будильников
+					MedFired.Add(key);
+					ni?.ShowBalloonTip(6000,"BpMonitor — лекарства","Пора принять: "+med+". Отметьте приём во вкладке «Лекарства».",ToolTipIcon.Info);
+				}
+			}
+		}
+	}
+
 	// ----------------------------- контекст записи -----------------------------
 	public static void Snapshot(Measurement m){
 		// кэш старше 2*интервала опроса считаем протухшим: пишем пустоту и обновляем погоду на будущее
@@ -1454,6 +1532,8 @@ static class App{
 			["emotions"]=JArray.FromObject(D.E.OrderByDescending(e=>e.T).ToList()),
 			["noises"]=JArray.FromObject(D.N.OrderByDescending(e=>e.T).ToList()),
 			["sleeps"]=JArray.FromObject(D.S.OrderByDescending(e=>e.T).ToList()),
+			["medtakes"]=JArray.FromObject(D.MedTakes.OrderByDescending(x=>x.T).Take(500).ToList()),
+			["medPkDb"]=JObject.FromObject(MedPkDb),
 			["nn"]=new JObject{
 				["W1"]=JArray.FromObject(D.Nn.W1),["B1"]=JArray.FromObject(D.Nn.B1),["W1b"]=JArray.FromObject(D.Nn.W1b),["B1b"]=JArray.FromObject(D.Nn.B1b),				["W2"]=JArray.FromObject(D.Nn.W2),["B2"]=JArray.FromObject(D.Nn.B2),
 				["loss"]=JArray.FromObject(D.Nn.Loss.Skip(Math.Max(0,D.Nn.Loss.Count-300))),
@@ -1654,6 +1734,15 @@ static class App{
 					nc.Meds=nc.Meds.Where(x=>!string.IsNullOrWhiteSpace(x)).Select(x=>x.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();// дедуп по названию без учёта регистра
 					nc.Noises=nc.Noises.Where(x=>!string.IsNullOrWhiteSpace(x)).Select(x=>x.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 					if(nc.MedKt!=null){ Dictionary<string,MedKt> mk=new Dictionary<string,MedKt>(); foreach(KeyValuePair<string,MedKt> kv in nc.MedKt) if(!string.IsNullOrWhiteSpace(kv.Key)) mk[NormMed(kv.Key)]=kv.Value; nc.MedKt=mk; }
+					if(nc.MedTimes!=null){// ключи — нормализованные названия, значения — только валидные HH:MM
+						Dictionary<string,List<string>> mt=new Dictionary<string,List<string>>();
+						foreach(KeyValuePair<string,List<string>> kv in nc.MedTimes){
+							string k=NormMed(kv.Key); if(k==""||kv.Value==null) continue;
+							List<string> ts=kv.Value.Where(x=>!string.IsNullOrWhiteSpace(x)).Select(x=>x.Trim()).Where(x=>System.Text.RegularExpressions.Regex.IsMatch(x,"^([01]?\\d|2[0-3]):[0-5]\\d$")).Distinct().ToList();
+							if(ts.Count>0) mt[k]=ts;
+						}
+						nc.MedTimes=mt;
+					}
 					Cfg=nc;
 					SaveCfg();
 					EnsureNnDim();// список лекарств мог измениться -> размерность входа
@@ -1683,6 +1772,50 @@ static class App{
 					SaveNn();
 					JsonResp(ctx.Response,new{ok=true});
 					return;
+				case"/api/medtake":{
+					string med=jo["med"]!=null?jo["med"].ToString().Trim():"";
+					if(string.IsNullOrWhiteSpace(med)){ JsonResp(ctx.Response,new{ok=false,err="не указано лекарство"}); return; }
+					DateTime t=DateTime.Now;
+					if(jo["t"]!=null){ try{ t=JT(jo,"t"); }catch{} }
+					MedTakeEntry mt=new MedTakeEntry{Id=Guid.NewGuid().ToString("N"),T=t,Med=med};
+					D.MedTakes.Add(mt);
+					AppendMedTake(mt);
+					Train();// приём меняет PK-фичи ближайших записей
+					SaveNn();
+					JsonResp(ctx.Response,new{ok=true,id=mt.Id});
+					return;
+				}
+				case"/api/medtake/delete":{
+					string id=jo["id"].ToString();
+					MedTakeEntry mt=D.MedTakes.FirstOrDefault(x=>x.Id==id);
+					if(mt!=null){
+						D.MedTakes.Remove(mt);
+						AppendGuidRec(RecMedTakeDel,id);
+						Train();
+						SaveNn();
+					}
+					JsonResp(ctx.Response,new{ok=true});
+					return;
+				}
+				case"/api/medpk":{
+					// полная замена справочника ФК: {"entries":{"имя":[T½,длительность],...}}
+					Dictionary<string,double[]> nd=new Dictionary<string,double[]>();
+					JObject e=jo["entries"] as JObject;
+					if(e!=null) foreach(KeyValuePair<string,JToken> kv in e){
+						JArray a=kv.Value as JArray; if(a==null||a.Count<2) continue;
+						string k=NormMed(kv.Key); if(k=="") continue;
+						double h,d;
+						if(double.TryParse((string)a[0],NumberStyles.Any,CultureInfo.InvariantCulture,out h)
+							&&double.TryParse((string)a[1],NumberStyles.Any,CultureInfo.InvariantCulture,out d)&&h>0&&d>0) nd[k]=new[]{h,d};
+					}
+					if(nd.Count==0){ JsonResp(ctx.Response,new{ok=false,err="пустой справочник"}); return; }
+					MedPkDb=nd;
+					SaveMedPk();
+					Train();// PK-фичи пересчитываются
+					SaveNn();
+					JsonResp(ctx.Response,new{ok=true,count=nd.Count});
+					return;
+				}
 				case"/api/storage/compact":{
 					long before=File.Exists(DataBinPath)?new FileInfo(DataBinPath).Length:0;
 					Save();// полная перезапись data.bin из D: tombstone и копии правок уходят
@@ -1836,6 +1969,39 @@ static class App{
 			D=new DataStore(); LoadBin();
 			if(D.M.Count!=1||D.N.Count!=1||D.S.Count!=1) throw new Exception("данные потеряны при компакции");
 		});
+		check("medpk.json: создание из эталона, чтение, MedKtFor",()=>{
+			string p=Path.Combine(ExeDir,"medpk.json");
+			if(File.Exists(p)) File.Delete(p);
+			LoadMedPk();
+			if(!File.Exists(p)) throw new Exception("medpk.json не создан");
+			if(!MedPkDb.ContainsKey("эналаприл")) throw new Exception("эталон не записан");
+			MedPkDb["тестмед"]=new[]{6.0,18.0}; SaveMedPk();
+			MedPkDb.Clear(); LoadMedPk();
+			if(!MedPkDb.ContainsKey("тестмед")) throw new Exception("пользовательская запись потеряна при перезагрузке");
+			(double half,double dur)=MedKtFor("Тест-Мед!");// нормализация названия
+			if(Math.Abs(half-6)>1e-9||Math.Abs(dur-18)>1e-9) throw new Exception("MedKtFor не взял значения из справочника");
+			MedPkDb.Remove("тестмед"); SaveMedPk();
+		});
+		check("MedTake: round-trip и union с измерениями",()=>{
+			Cfg=new Config(); Cfg.Meds=new List<string>{"тестмед"}; D=new DataStore();
+			DateTime t0=new DateTime(2026,8,22,12,0,0);
+			string del=Guid.NewGuid().ToString("N");
+			AppendMedTake(new MedTakeEntry{Id=del,T=t0.AddHours(-5),Med="удалённое"});
+			AppendGuidRec(RecMedTakeDel,del);
+			string keep=Guid.NewGuid().ToString("N");
+			AppendMedTake(new MedTakeEntry{Id=keep,T=t0.AddHours(8),Med="тестмед"});
+			D=new DataStore(); LoadBin();
+			if(D.MedTakes.Count!=1||D.MedTakes[0].Med!="тестмед"||D.MedTakes[0].T!=t0.AddHours(8)) throw new Exception("round-trip: "+D.MedTakes.Count);
+			// union: приём с измерения (t0) + приём из журнала (t0+8ч)
+			D.M.Add(new Measurement{Id=Guid.NewGuid().ToString("N"),T=t0,Sys=120,Dia=80,Meds=new List<string>{"тестмед"}});
+			Dictionary<string,List<DateTime>> ints=MedIntakes();
+			List<DateTime> ts;
+			if(!ints.TryGetValue("тестмед",out ts)||ts.Count!=2) throw new Exception("union: "+(ts==null?0:ts.Count));
+			// at t0+8h: conc = 0.5^(8/8) + 0.5^0 = 1.5 -> x=min(1.5,3)/3 = 0.5 (тестмед удалён из medpk -> дефолт 8/12)
+			double[] x=FeatsFor(new Measurement{Id=Guid.NewGuid().ToString("N"),T=t0.AddHours(8),Sys=120,Dia=80});
+			if(Math.Abs(x[12]-0.5)>1e-6) throw new Exception("PK-фича по двум приёмам: x[12]="+x[12]);
+			if(Math.Abs(x[13]-1.0)>1e-6) throw new Exception("окно действия свежего приёма -> 1, x[13]="+x[13]);
+		});
 		check("DailyBackup: архив создаётся один раз в сутки",()=>{
 			string bdir=Path.Combine(ExeDir,"backups");
 			if(Directory.Exists(bdir)) Directory.Delete(bdir,true);
@@ -1981,6 +2147,7 @@ static class Program{
 		timer.Tick+=(s,e)=>{
 			tick++;
 			App.CheckAlarms(TrayIcon);
+			App.CheckMedReminders(TrayIcon);
 			if(tick%3600==0) App.DailyBackup();// долгий аптайм: бэкап раз в сутки без перезапуска
 			if(tick-lastPoll<Math.Max(1,App.Cfg.PollMin)*60) return;
 			lastPoll=tick;

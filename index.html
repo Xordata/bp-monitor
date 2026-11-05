@@ -206,8 +206,24 @@ canvas{max-width:100%;border:1px solid var(--bd);background:#fff}
         <input id="md-name" style="width:220px" placeholder="название лекарства">
         <button class="primary" onclick="addMd()">Добавить</button>
       </div>
-      <div style="margin-top:8px"><table id="md-t"><thead><tr><th>Название</th><th>T½, ч</th><th>Действие, ч</th><th></th></tr></thead><tbody></tbody></table></div>
-      <p class="mut" style="margin:6px 0 0">T½ — период полувыведения, «Действие» — длительность действия (часы). Для известных препаратов подставлены справочные значения (StatPearls/DailyMed), для неизвестных — 8/12 ч; всё можно править. НН использует эти параметры: «остаточная активность» и «окно действия» каждого лекарства. Список нечувствителен к регистру.</p>
+      <div style="margin-top:8px"><table id="md-t"><thead><tr><th>Название</th><th>T½, ч</th><th>Действие, ч</th><th>Расписание приёма</th><th>Отметка</th><th></th></tr></thead><tbody></tbody></table></div>
+      <p class="mut" style="margin:6px 0 0">T½ — период полувыведения, «Действие» — длительность действия (часы). Для известных препаратов подставлены справочные значения (medpk.json), для неизвестных — 8/12 ч; всё можно править. НН использует эти параметры: «остаточная активность» и «окно действия» каждого лекарства. «Расписание приёма» (через запятую, HH:MM) — балюн-напоминание в трее. Список нечувствителен к регистру.</p>
+    </section>
+    <section>
+      <h3>Отметки приёма</h3>
+      <div id="md-takes"></div>
+      <p class="mut" style="margin:6px 0 0">«✓ Принять» отмечает фактический приём — НН строит PK-признаки по отметкам, даже когда лекарство не отмечено на измерении.</p>
+    </section>
+    <section>
+      <h3>Справочник ФК (medpk.json)</h3>
+      <div class="grid">
+        <input id="db-name" style="width:180px" placeholder="МНН или бренд">
+        <input id="db-half" type="number" step="0.5" min="0.25" style="width:70px" placeholder="T½ ч">
+        <input id="db-dur" type="number" step="1" min="0.5" style="width:90px" placeholder="действие ч">
+        <button class="primary" onclick="dbAdd()">В справочник</button>
+      </div>
+      <div style="margin-top:8px;max-height:280px;overflow:auto"><table id="db-t"><thead><tr><th>Название</th><th>T½, ч</th><th>Действие, ч</th><th></th></tr></thead><tbody></tbody></table></div>
+      <p class="mut" style="margin:6px 0 0">Хранится в <code>medpk.json</code> рядом с программой — правится без пересборки (или редактированием файла). Используется, когда у лекарства нет персонального переопределения в таблице выше.</p>
     </section>
   </div>
 
@@ -645,15 +661,50 @@ function delAl(i){
 /* ---------- лекарства ---------- */
 function normMd(s){return s.toLowerCase().replace(/ё/g,"е").replace(/[^a-zа-я0-9]/gi,"");}
 function renderMeds(){
-  const pk=S.medPk||{};
+  const pk=S.medPk||{},times=S.cfg.MedTimes||{};
   document.querySelector("#md-t tbody").innerHTML=(S.cfg.Meds||[]).map((m,i)=>{
     const p=pk[m]||{half:8,dur:12};
+    const ts=(times[normMd(m)]||[]).join(", ");
     return `<tr><td>${esc(m)}${p.known?"":' <span class="mut" title="в справочнике не найдено — значения по умолчанию, отредактируйте">(? )</span>'}</td>`+
       `<td><input type="number" step="0.5" min="0.25" style="width:64px" value="${p.half}" onchange="setMdPk(${i},'HalfH',this.value)"></td>`+
       `<td><input type="number" step="1" min="0.5" style="width:64px" value="${p.dur}" onchange="setMdPk(${i},'DurH',this.value)"></td>`+
+      `<td><input style="width:110px" value="${esc(ts)}" placeholder="08:00, 20:00" title="через запятую; балюн-напоминание о приёме" onchange="setMdTimes(${i},this.value)"></td>`+
+      `<td><button onclick="medTake(${i})" title="отметить фактический приём сейчас">✓ Принять</button></td>`+
       `<td><button onclick="delMd(${i})">✕</button></td></tr>`;
-  }).join("")||'<tr><td colspan="4" class="mut">список пуст</td></tr>';
+  }).join("")||'<tr><td colspan="6" class="mut">список пуст</td></tr>';
+  const takes=(S.medtakes||[]).slice(0,15);
+  $("md-takes").innerHTML=takes.length
+    ?`<table><tbody>`+takes.map(t=>{const d=new Date(t.T);return `<tr><td>${p2(d.getDate())}.${p2(d.getMonth()+1)}.${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}</td><td>${esc(t.Med)}</td><td><button onclick="delMedTake('${esc(t.Id)}')" title="удалить отметку">✕</button></td></tr>`;}).join("")+`</tbody></table>`
+    :'<span class="mut">Отметок пока нет — «✓ Принять» в таблице выше</span>';
+  renderDb();
 }
+function setMdTimes(i,v){
+  const name=S.cfg.Meds[i];
+  const ts=v.split(/[,;]/).map(x=>x.trim()).filter(x=>/^([01]?\d|2[0-3]):[0-5]\d$/.test(x));
+  S.cfg.MedTimes=S.cfg.MedTimes||{};
+  if(ts.length)S.cfg.MedTimes[normMd(name)]=ts;else delete S.cfg.MedTimes[normMd(name)];
+  apiPost("/api/config",S.cfg).then(j=>{flash(j.ok?"Расписание сохранено":(j.err||"Ошибка"),!!j.ok);loadState();});
+}
+async function medTake(i){const name=S.cfg.Meds[i];const j=await apiPost("/api/medtake",{med:name});flash(j.ok?("Приём отмечен: "+name):("Ошибка: "+(j.err||"?")),!!j.ok);loadState();}
+async function delMedTake(id){if(!confirm("Удалить отметку приёма?"))return;await apiPost("/api/medtake/delete",{id});loadState();}
+/* справочник ФК (medpk.json) */
+function dbRows(){return Object.entries(S.medPkDb||{}).sort((a,b)=>a[0].localeCompare(b[0],"ru"));}
+function renderDb(){
+  document.querySelector("#db-t tbody").innerHTML=dbRows().map(([k,v],i)=>
+    `<tr><td>${esc(k)}</td>`+
+    `<td><input type="number" step="0.5" min="0.25" style="width:64px" value="${v[0]}" onchange="dbSet(${i},0,this.value)"></td>`+
+    `<td><input type="number" step="1" min="0.5" style="width:70px" value="${v[1]}" onchange="dbSet(${i},1,this.value)"></td>`+
+    `<td><button onclick="dbDel(${i})" title="убрать из справочника">✕</button></td></tr>`).join("");
+}
+function dbSet(i,f,v){const r=dbRows()[i];if(!r)return;if(!(+v>0))return loadState();S.medPkDb[r[0]][f]=+v;postDb();}
+function dbAdd(){
+  const n=normMd($("db-name").value),h=+$("db-half").value,d=+$("db-dur").value;
+  if(!n){flash("Введите название",false);return;}
+  if(!(h>0)||!(d>0)){flash("Укажите T½ и длительность действия",false);return;}
+  S.medPkDb[n]=[h,d];$("db-name").value=$("db-half").value=$("db-dur").value="";postDb();
+}
+function dbDel(i){const r=dbRows()[i];if(!r||!confirm("Удалить «"+r[0]+"» из справочника?"))return;delete S.medPkDb[r[0]];postDb();}
+async function postDb(){const j=await apiPost("/api/medpk",{entries:S.medPkDb});flash(j.ok?("Справочник сохранён, записей: "+j.count):("Ошибка: "+(j.err||"?")),!!j.ok,5000);loadState();}
 function setMdPk(i,field,v){
   const name=S.cfg.Meds[i];
   const val=Math.max(field==="HalfH"?0.25:0.5,+v||0);

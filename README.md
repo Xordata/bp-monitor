@@ -53,8 +53,10 @@ bin\Debug\net481\BpMonitor.exe --selftest   # самотест (временны
 - Импорт сна из CSV Mi Band / Mi Fit.
 
 ### Лекарства
-- Список препаратов; для известных справочные T½ и длительность действия (StatPearls/DailyMed и др.), правятся вручную.
+- Список препаратов; для известных — справочные T½ и длительность действия из `medpk.json` рядом с exe (создаётся при первом запуске, правится в UI или редактированием файла — без пересборки), для неизвестных 8/12 ч; всё можно править.
 - Используются НН как фармакокинетические признаки.
+- **Расписание приёма** (по каждому лекарству, HH:MM через запятую) — балюн-напоминание «пора принять» с догоном 30 мин.
+- **Отметки приёма** («✓ Принять») — журнал фактических приёмов (свой тип записей в `data.bin`); НН строит по ним PK-признаки, даже когда лекарство не отмечено на измерении.
 
 ## Конфигурация (`config.json` рядом с exe, создаётся автоматически)
 
@@ -70,7 +72,7 @@ bin\Debug\net481\BpMonitor.exe --selftest   # самотест (временны
 | `Ha.Url`, `Ha.Token`, `Ha.Sensors` | Home Assistant (опционально) |
 | `Nn.Lr`, `Nn.Hidden`, `Nn.Hidden2`, `Nn.Epochs` | гиперпараметры НН |
 | `Alarms[]` | будильники: `Time`, `Label`, `Enabled`, `Mode` (daily/days/everyN), `Days[]` (ISO 1=Пн…7=Вс), `EveryN`, `Anchor` |
-| `Meds[]`, `MedKt{}` | лекарства и их ФК-параметры |
+| `Meds[]`, `MedKt{}`, `MedTimes{}` | лекарства, их ФК-переопределения и расписание напоминаний о приёме (HH:MM) |
 | `Noises[]` | список типов шума |
 
 ## Данные (папка `data/` рядом с exe)
@@ -94,6 +96,9 @@ bin\Debug\net481\BpMonitor.exe --selftest   # самотест (временны
 | `POST /api/emotion` / `/api/noise` / `/api/sleep` | записи журнала |
 | `POST /api/journal/delete` | `{id}` |
 | `POST /api/sleep/import` | CSV Mi Band |
+| `POST /api/medtake` | отметить приём лекарства `{med, t?}` (t по умолчанию — сейчас) |
+| `POST /api/medtake/delete` | `{id}` |
+| `POST /api/medpk` | полная замена справочника ФК `{"entries":{"имя":[T½,длительность],...}}` → `medpk.json` |
 | `GET /api/nn/predictions` | прогноз НН по каждой записи |
 | `POST /api/nn/train` / `/api/nn/train_ga` / `/api/nn/reset` | обучение SGD / генетическое / сброс |
 | `GET /api/job` | статус фоновой задачи (train_ga/backfill): running, name, done/total, result, error |

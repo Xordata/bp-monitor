@@ -8,3 +8,4 @@ backups/
 *.bad-*
 .idea/
 *.user
+medpk.json
