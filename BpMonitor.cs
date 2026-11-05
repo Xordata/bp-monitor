@@ -246,6 +246,7 @@ static class App{
 	}
 	public static void Load(){
 		LoadMedPk();// справочник ФК нужен до EnsureNnDim/Train (PK-фичи)
+		LoadValidation();
 		try{
 			if(File.Exists(CfgPath))
 				Cfg=JsonConvert.DeserializeObject<Config>(File.ReadAllText(CfgPath,Encoding.UTF8),JSONSettings)??new Config();
@@ -764,8 +765,7 @@ static class App{
 
 	// Обучает НН по всем записям (online: вызывается при каждом вводе)
 	public static void Train(){
-		NnModel n=D.Nn;
-		int hidden=n.W1.GetLength(0),f=n.W1.GetLength(1),h2=n.W1b.GetLength(0);		Dictionary<string,List<DateTime>> intakes=MedIntakes();
+		Dictionary<string,List<DateTime>> intakes=MedIntakes();
 		List<double[]> xs=new List<double[]>();
 		List<double[]> ys=new List<double[]>();
 		foreach(Measurement m in D.M.Where(m=>m.Sys>0).OrderByDescending(m=>m.T).Take(2000)){
@@ -773,9 +773,14 @@ static class App{
 			ys.Add(new[]{(m.Sys-120.0)/30.0,(m.Dia-80.0)/20.0});
 		}
 		if(xs.Count<2) return;
-		Random rnd=new Random();
-		double lr=Cfg.Nn.Lr;
-		for(int ep=0;ep<Math.Max(1,Cfg.Nn.Epochs);ep++){
+		TrainModel(D.Nn,xs,ys,Cfg.Nn.Lr,Math.Max(1,Cfg.Nn.Epochs),true);
+	}
+	// SGD по готовой выборке; recordLoss — записать loss последнего эпоха в n.Loss;
+	// seed != 0 — детерминированный перемешивающий генератор (для самотеста валидации)
+	public static void TrainModel(NnModel n,List<double[]> xs,List<double[]> ys,double lr,int epochs,bool recordLoss,int seed=0){
+		int hidden=n.W1.GetLength(0),f=n.W1.GetLength(1),h2=n.W1b.GetLength(0);
+		Random rnd=seed!=0?new Random(seed):new Random();
+		for(int ep=0;ep<epochs;ep++){
 			for(int i=xs.Count-1;i>0;i--){
 				int j=rnd.Next(i+1);
 				(xs[i],xs[j])=(xs[j],xs[i]);
@@ -835,7 +840,7 @@ static class App{
 					n.B1[i]-=g;
 				}
 			}
-			if(ep!=Math.Max(1,Cfg.Nn.Epochs)-1) continue;
+			if(!recordLoss||ep!=epochs-1) continue;
 			n.Loss.Add(new LossPt{T=DateTime.Now.ToString("MM-dd HH:mm"),L=Math.Round(sum/(xs.Count*2.0),4)});
 			if(n.Loss.Count>500) n.Loss.RemoveRange(0,n.Loss.Count-500);
 		}
@@ -920,6 +925,89 @@ static class App{
 		int a=rnd.Next(fit.Length),b=rnd.Next(fit.Length),c=rnd.Next(fit.Length);
 		int best=fit[a]<=fit[b]?a:b;
 		return fit[c]<fit[best]?c:best;
+	}
+
+	// ----------------------------- НН: holdout-валидация + значимость фич -----------------------------
+	// Обучение loss скрывает переобученность: модель видит все записи. Здесь же НН обучается
+	// с нуля на всём, КРОМЕ последних N записей (рабочая модель D.Nn не трогается), и проверяется
+	// на удержанных: MAE/RMSE в мм рт.ст. Значимость фич — перестановочная: колонка фичи на
+	// holdout перемешивается, насколько вырос MSE — столько фича и двигает прогноз.
+	// Результат живёт в data\validate.json и отдаётся в /api/state (nn.validate).
+	static JObject _lastValidation;
+	public static JObject LastValidation=>_lastValidation;
+	public static void LoadValidation(){
+		try{
+			string f=Path.Combine(ExeDir,"data","validate.json");
+			if(File.Exists(f)) _lastValidation=JObject.Parse(File.ReadAllText(f,Encoding.UTF8));
+		} catch(Exception ex){ Log("validate.json: "+ex.Message); }
+	}
+	static void SaveValidation(){
+		try{
+			if(_lastValidation!=null) File.WriteAllText(Path.Combine(ExeDir,"data","validate.json"),
+				_lastValidation.ToString(Newtonsoft.Json.Formatting.None),Encoding.UTF8);
+		} catch(Exception ex){ Log("validate.json: "+ex.Message); }
+	}
+	static double Mse(NnModel n,List<double[]> xs,List<double[]> ys){
+		double sum=0;
+		for(int s=0;s<xs.Count;s++){
+			double[] y=Forward(n,xs[s]);
+			double e0=y[0]-ys[s][0],e1=y[1]-ys[s][1];
+			sum+=e0*e0+e1*e1;
+		}
+		return sum/(xs.Count*2.0);
+	}
+	// holdoutN<=0 — авто: max(5, min(40, n/5)); seed — детерминированность перестановок
+	public static JObject Validate(int holdoutN=0,int seed=42){
+		List<Measurement> items=D.M.Where(m=>m.Sys>0).OrderBy(m=>m.T).ToList();
+		int n=items.Count;
+		if(n<20) throw new Exception("мало данных для валидации: "+n+" записей (нужно ≥20)");
+		int hold=holdoutN>0?Math.Min(holdoutN,n-10):Math.Max(5,Math.Min(40,n/5));
+		if(hold<5) hold=5;
+		Dictionary<string,List<DateTime>> intakes=MedIntakes();
+		List<double[]> xs=new List<double[]>(),xh=new List<double[]>(),ys=new List<double[]>(),yh=new List<double[]>();
+		for(int i=0;i<n;i++){
+			double[] x=FeatsFor(items[i],intakes);
+			double[] y=new[]{(items[i].Sys-120.0)/30.0,(items[i].Dia-80.0)/20.0};
+			if(i<n-hold){ xs.Add(x); ys.Add(y); } else { xh.Add(x); yh.Add(y); }
+		}
+		JobProgress(1,3);
+		NnModel tmp=NewNn(Cfg.Nn.Hidden,Cfg.Nn.Hidden2,InDim());// свежая модель без последних N записей
+		TrainModel(tmp,xs,ys,Cfg.Nn.Lr,Math.Max(1,Cfg.Nn.Epochs),false,seed);
+		JobProgress(2,3);
+		double maeS=0,maeD=0,sqS=0,sqD=0;
+		for(int i=0;i<xh.Count;i++){
+			double[] y=Forward(tmp,xh[i]);
+			double ps=Clamp(120+30*y[0],70,250),pd=Clamp(80+20*y[1],40,150);
+			if(pd>=ps) pd=ps-20;
+			double es=ps-items[n-hold+i].Sys,ed=pd-items[n-hold+i].Dia;
+			maeS+=Math.Abs(es); maeD+=Math.Abs(ed); sqS+=es*es; sqD+=ed*ed;
+		}
+		double baseMse=Mse(tmp,xh,yh);
+		string[] names=GetFeatNames();
+		int f=xh[0].Length;
+		List<JObject> imp=new List<JObject>();
+		Random rnd=new Random(seed);
+		const int reps=5;// усреднение перестановок: на маленьком holdout одиночный shuffle слишком шумный
+		for(int j=0;j<f;j++){
+			double acc=0;
+			for(int r=0;r<reps;r++){
+				List<double[]> sh=new List<double[]>();
+				foreach(double[] x in xh) sh.Add((double[])x.Clone());
+				for(int i=sh.Count-1;i>0;i--){ int k=rnd.Next(i+1); double t=sh[i][j]; sh[i][j]=sh[k][j]; sh[k][j]=t; }
+				acc+=Mse(tmp,sh,yh);
+			}
+			imp.Add(new JObject{["name"]=names[j],["d"]=Math.Round(acc/reps-baseMse,4)});
+		}
+		JArray impArr=new JArray(imp.OrderByDescending(o=>(double)o["d"]).Cast<JToken>().ToList());
+		JobProgress(3,3);
+		return new JObject{
+			["at"]=DateTime.Now.ToString("yyyy-MM-dd HH:mm"),
+			["n"]=n,["nTrain"]=xs.Count,["nHold"]=xh.Count,
+			["maeSys"]=Math.Round(maeS/xh.Count,1),["maeDia"]=Math.Round(maeD/xh.Count,1),
+			["rmseSys"]=Math.Round(Math.Sqrt(sqS/xh.Count),1),["rmseDia"]=Math.Round(Math.Sqrt(sqD/xh.Count),1),
+			["trainMse"]=Math.Round(Mse(tmp,xs,ys),4),["holdMse"]=Math.Round(baseMse,4),
+			["importance"]=impArr
+		};
 	}
 
 	// ----------------------------- погода -----------------------------
@@ -1537,7 +1625,8 @@ static class App{
 			["nn"]=new JObject{
 				["W1"]=JArray.FromObject(D.Nn.W1),["B1"]=JArray.FromObject(D.Nn.B1),["W1b"]=JArray.FromObject(D.Nn.W1b),["B1b"]=JArray.FromObject(D.Nn.B1b),				["W2"]=JArray.FromObject(D.Nn.W2),["B2"]=JArray.FromObject(D.Nn.B2),
 				["loss"]=JArray.FromObject(D.Nn.Loss.Skip(Math.Max(0,D.Nn.Loss.Count-300))),
-				["predict"]=new JObject{["sys"]=Math.Round(p.sys,1),["dia"]=Math.Round(p.dia,1)}
+				["predict"]=new JObject{["sys"]=Math.Round(p.sys,1),["dia"]=Math.Round(p.dia,1)},
+				["validate"]=_lastValidation
 			}
 		};
 	}
@@ -1582,21 +1671,29 @@ static class App{
 			}
 			// запуск фоновых задач — тоже вне lock(Sync): сама задача держит этот замок,
 			// а обработчик не должен за ним ждать (иначе «уже выполняется» никогда не сработает)
-			if(req.HttpMethod=="POST"&&(req.Url.AbsolutePath=="/api/nn/train_ga"||req.Url.AbsolutePath=="/api/weather/backfill")){
+			string jobPath=req.Url.AbsolutePath;
+			bool isGa=jobPath=="/api/nn/train_ga",isVal=jobPath=="/api/nn/validate";
+			if(req.HttpMethod=="POST"&&(isGa||isVal||jobPath=="/api/weather/backfill")){
 				string jb=ReadBody(req);
 				JObject jo=null; try{ jo=jb.Length>0?JObject.Parse(jb):new JObject(); }catch{}
-				bool ga=req.Url.AbsolutePath=="/api/nn/train_ga";
-				if(!TryStartJob(ga?"train_ga":"backfill")){ JsonResp(ctx.Response,new{ok=false,err="уже выполняется: "+_job.Name}); return; }
+				if(!TryStartJob(isGa?"train_ga":isVal?"validate":"backfill")){ JsonResp(ctx.Response,new{ok=false,err="уже выполняется: "+_job.Name}); return; }
 				Job job=_job;
 				DateTime? fu=null;
-				if(!ga&&jo!=null&&jo["force_until"]!=null){ try{ fu=JT(jo,"force_until"); }catch{} }
+				if(!isGa&&!isVal&&jo!=null&&jo["force_until"]!=null){ try{ fu=JT(jo,"force_until"); }catch{} }
+				int holdout=0;
+				if(isVal&&jo!=null&&jo["holdout"]!=null){ int.TryParse((string)jo["holdout"],out holdout); }
 				Task.Run(()=>{
 					try{
 						lock(Sync){
-							if(ga){ double loss=TrainGenetic(); job.Result="MSE="+Math.Round(loss,4); SaveNn(); }
+							if(isGa){ double loss=TrainGenetic(); job.Result="MSE="+Math.Round(loss,4); SaveNn(); }
+							else if(isVal){
+								JObject r=Validate(holdout);
+								_lastValidation=r; SaveValidation();
+								job.Result="MAE сис="+((double)r["maeSys"]).ToString(CultureInfo.InvariantCulture)+" диаст="+((double)r["maeDia"]).ToString(CultureInfo.InvariantCulture)+" мм рт.ст.";
+							}
 							else{ int nwx=BackfillWeather(fu); if(nwx>0){ Train(); SaveNn(); } job.Result="заполнено записей: "+nwx; }
 						}
-					} catch(Exception ex){ job.Error=ex.Message; Log((ga?"train_ga":"backfill")+": "+ex.Message); }
+					} catch(Exception ex){ job.Error=ex.Message; Log((isGa?"train_ga":isVal?"validate":"backfill")+": "+ex.Message); }
 					finally{ job.Running=false; }
 				});
 				JsonResp(ctx.Response,new{ok=true,started=true});
@@ -1930,6 +2027,34 @@ static class App{
 			if(Math.Abs(x2[13]-(1.0-8.0/12))>1e-6) throw new Exception("окно dur=12ч: win=1-8/12, x[13]="+x2[13]);
 			double[] x3=FeatsFor(new Measurement{Id=Guid.NewGuid().ToString("N"),T=t0.AddHours(13),Sys=120,Dia=80});
 			if(Math.Abs(x3[13])>1e-9) throw new Exception("за окном действия -> 0");
+		});
+		check("Validate: holdout-раздел + метрики + значимость",()=>{
+			Cfg=new Config(); Cfg.Meds=new List<string>();
+			D=new DataStore();
+			Random r=new Random(7);
+			DateTime t0=new DateTime(2026,9,1,8,0,0);
+			for(int i=0;i<60;i++){// sys линейно зависит от атмосферного давления — единственная информативная фича
+				float press=740+r.Next(0,40);
+				D.M.Add(new Measurement{Id=Guid.NewGuid().ToString("N"),T=t0.AddHours(i*8.0),Sys=(int)(press-620),Dia=80,Pulse=70,PressMm=press});
+			}
+			JObject v=Validate(12);
+			if((int)v["nTrain"]!=48||(int)v["nHold"]!=12) throw new Exception("раздел 48/12, получили "+(int)v["nTrain"]+"/"+(int)v["nHold"]);
+			JArray imp=(JArray)v["importance"];
+			if(imp.Count!=InDim()) throw new Exception("значимостей "+imp.Count+", InDim="+InDim());
+			double mae=(double)v["maeSys"],rmse=(double)v["rmseSys"];
+			if(mae<0||rmse<mae) throw new Exception("MAE="+mae+" RMSE="+rmse+" (RMSE должен быть >= MAE)");
+			if((double)v["maeSys"]>25) throw new Exception("модель не выучила линейную связь с давлением: MAE="+mae);
+			// перестановка информативной колонки должна увеличивать MSE сильнее прочего
+			JObject pressImp=imp.Cast<JObject>().First(o=>(string)o["name"]=="давл. мм");
+			double maxOther=imp.Cast<JObject>().Where(o=>(string)o["name"]!="давл. мм").Max(o=>(double)o["d"]);
+			if((double)pressImp["d"]<=maxOther) throw new Exception("«давл. мм» не оказалась главной фичей: d="+(double)pressImp["d"]+", maxOther="+maxOther);
+			// авто-раздел: n=60 -> hold=12
+			JObject va=Validate(0);
+			if((int)va["nHold"]!=12) throw new Exception("авто-holdout n/5=12, получили "+(int)va["nHold"]);
+			// мало данных — ошибка, а не тихий ноль
+			D.M.RemoveRange(0,45);
+			try{ Validate(0); throw new Exception("при <20 записей должен бросать"); }
+			catch(Exception ex){ if(ex.Message=="при <20 записей должен бросать") throw; }
 		});
 		check("data.bin: append/правка/tombstone round-trip",()=>{
 			D=new DataStore();

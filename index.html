@@ -167,6 +167,14 @@ canvas{max-width:100%;border:1px solid var(--bd);background:#fff}
       <canvas id="loss-cv" width="720" height="160"></canvas>
     </section>
     <section>
+      <h3>Контроль качества (holdout)</h3>
+      <div class="grid" style="align-items:center">
+        <button class="primary" onclick="nnValidate()">Проверить модель</button>
+        <span id="nn-val-sum" class="mut"></span>
+      </div>
+      <div id="nn-val" style="margin-top:8px"></div>
+    </section>
+    <section>
       <h3>Прогнозы модели по последним 30 измерениям</h3>
       <table id="nn-t"><thead><tr><th>Дата</th><th>Врем</th><th>Измерено</th><th>Прогноз</th><th>Δ сис</th><th>Δ диаст</th></tr></thead><tbody></tbody></table>
     </section>
@@ -553,6 +561,7 @@ async function renderNn(){
   const p=S.nn&&S.nn.predict;
   $("nn-pred").innerHTML=p?`Текущий прогноз: <b style="font-size:16px">${Math.round(p.sys)} / ${Math.round(p.dia)}</b> мм рт.ст.`:"";
   drawLoss();
+  renderValidate(S.nn&&S.nn.validate);
   try{
     const arr=await (await fetch("/api/nn/predictions")).json();
     predMap={};arr.forEach(x=>predMap[x.id]=x);
@@ -586,6 +595,32 @@ function drawLoss(){
   x.fillText(L[L.length-1].T,c.width-80,c.height-8);
 }
 async function nnTrain(){flash("Обучение…");await apiPost("/api/nn/train");setTimeout(loadState,800);flash("Обучено");}
+/* holdout-валидация: сервер обучает НН с нуля без последних N записей и проверяет на них;
+   результат живёт в nn.validate (переживает перезапуск — data\validate.json) */
+function renderValidate(v){
+  const sum=$("nn-val-sum"),box=$("nn-val");
+  if(!v){sum.textContent="";box.innerHTML='<span class="mut">«Проверить модель» обучит НН с нуля на всех записях, кроме последних N, и проверит на удержанных. MAE/RMSE — честная точность (training loss её скрывает); перестановочная значимость покажет, какие фичи реально двигают прогноз.</span>';return;}
+  sum.textContent=`${v.at}: обучено на ${v.nTrain} записях, проверено на ${v.nHold} последних`;
+  const over=v.holdMse>v.trainMse*2&&v.trainMse>0;
+  const imp=(v.importance||[]).filter(x=>Math.abs(x.d)>=0.0001);
+  const mx=Math.max.apply(null,imp.map(x=>Math.abs(x.d)).concat([1e-9]));
+  box.innerHTML=`<table><thead><tr><th>Метрика (holdout)</th><th>систолическое</th><th>диастолическое</th></tr></thead><tbody>`+
+    `<tr><td>MAE, мм рт.ст.</td><td><b>${v.maeSys}</b></td><td><b>${v.maeDia}</b></td></tr>`+
+    `<tr><td>RMSE, мм рт.ст.</td><td><b>${v.rmseSys}</b></td><td><b>${v.rmseDia}</b></td></tr>`+
+    `<tr><td class="mut">MSE: обучение / holdout</td><td class="mut" colspan="2">${v.trainMse} / ${v.holdMse}`+
+    (over?` <b class="warn">возможен переобуч</b>`:"")+`</td></tr></tbody></table>`+
+    `<h3 style="margin-top:12px">Перестановочная значимость фич (ΔMSE на holdout)</h3>`+
+    (imp.length?imp.map(x=>`<div style="display:flex;align-items:center;gap:8px;margin:2px 0">`+
+      `<span style="min-width:200px">${x.name}</span>`+
+      `<div style="height:10px;background:var(--accent,#2f5d8a);width:${Math.max(2,Math.round(Math.abs(x.d)/mx*260))}px"></div>`+
+      `<span class="mut">${x.d}</span></div>`).join("")
+      :'<span class="mut">ни одна фича не сдвинула прогноз (|ΔMSE| < 0.0001) — модель их не использует</span>');
+}
+async function nnValidate(){
+  const j=await apiPost("/api/nn/validate");
+  if(!j.ok){flash("Ошибка: "+(j.err||"?"),false,6000);return;}
+  await waitJob("Валидация модели");loadState();
+}
 async function nnTrainGa(){if(!confirm("Генетическое обучение: дольше, но может уйти из локального минимума. Продолжить?"))return;
   const j=await apiPost("/api/nn/train_ga");
   if(!j.ok){flash("Ошибка: "+(j.err||"?"),false,6000);return;}

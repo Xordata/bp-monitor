@@ -20,7 +20,7 @@
 │  Фоновые async-задачи (Task.Run / async Task):                                   │
 │   ├─ PollWeatherAsync(): open-meteo current + GFZ Kp + HA-датчики → Weather      │
 │   ├─ FetchWxDayAsync(): архив погоды/Kp для исторических дат                     │
-│   ├─ фоновые задачи /api/nn/train_ga и /api/weather/backfill (статус в /api/job) │
+│   ├─ фоновые задачи /api/nn/train_ga, /api/nn/validate и /api/weather/backfill (статус в /api/job) │
 │   └─ NAudio.WaveOut: зацикленный mp3 будильника                                  │
 └──────────────────────────────────────────────────────────────────────────────────┘
         ↕ lock(Sync) — консистентность D/Cfg; lock(Io) — запись в data.bin
@@ -88,6 +88,7 @@ POST /api/measurement {t,sys,dia,pulse,note,meds[]}
 - Обучение: `Train()` — SGD по последним 2000 записям, `Epochs` эпох, перемешивание; вызывается при каждом вводе/правке/удалении. `TrainGenetic()` — GA (популяция 60, 250 поколений, турнирный отбор, элитизм 2, равномерный кроссовер, гауссова мутация σ 0.25→0.01), затравка — текущие веса; ~20 с, возвращает MSE.
 - `EnsureNnDim()` при старте/смене лекарств/размеров: несовпадение размерности → `NewNn` + полное переобучение (веса теряются — размерность деструктивна).
 - Loss-кривая: `NnModel.Loss` (последние 500 точек), рисуется на вкладке «Модель».
+- **Валидация** `Validate(holdoutN,seed)`: SGD `TrainModel` на свежей модели без последних N записей (авто n/5, 5–40) → MAE/RMSE в мм рт.ст. на удержанных + перестановочная значимость (5 усреднённых перестановок колонки на holdout, ΔMSE). Фоновая задача `POST /api/nn/validate`, результат в `data\validate.json` и `nn.validate` в `/api/state`.
 
 ## Погодный конвейер
 
@@ -126,4 +127,4 @@ dotnet build                    # net481, требует .NET Framework 4.8.1 ta
 bin\Debug\net481\BpMonitor.exe  # index.html и alarm.mp3 копируются в bin (csproj PreserveNewest)
 ```
 
-Правки только HTML подхватываются на лету (файл читается на каждый запрос) — достаточно скопировать `index.html` в `bin\Debug\net481\`. Правки C# требуют kill+build+restart. Git-репозиторий заведён (`bin/`, `obj/`, `data/`, `config.json`, `backups/` в `.gitignore`). Тесты: `BpMonitor.exe --selftest` — 10 проверок ядра в песочнице (см. `App.SelfTest`); ручная проверка UI делалась через браузер-автоматизацию.
+Правки только HTML подхватываются на лету (файл читается на каждый запрос) — достаточно скопировать `index.html` в `bin\Debug\net481\`. Правки C# требуют kill+build+restart. Git-репозиторий заведён (`bin/`, `obj/`, `data/`, `config.json`, `backups/` в `.gitignore`). Тесты: `BpMonitor.exe --selftest` — 13 проверок ядра в песочнице (см. `App.SelfTest`); ручная проверка UI делалась через браузер-автоматизацию.
