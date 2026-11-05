@@ -1,0 +1,10 @@
+bin/
+obj/
+data/
+config.json
+backup-*/
+backups/
+*.old-*
+*.bad-*
+.idea/
+*.user

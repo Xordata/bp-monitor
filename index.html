@@ -1,0 +1,730 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BpMonitor</title>
+<style>
+:root{--bd:#c9c9c4}
+*{box-sizing:border-box}
+body{font:13px/1.45 Tahoma,Verdana,sans-serif;margin:0;background:#f6f6f3;color:#222}
+header{background:#fff;border-bottom:1px solid var(--bd);padding:6px 10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;position:sticky;top:0;z-index:5}
+header b{font-size:14px}
+.wx{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.wx span{white-space:nowrap}
+.wx .up{color:#777}
+#pred{padding:2px 8px;border:1px solid var(--bd);background:#fff;border-radius:3px}
+#pred.bad{background:#fdecea;border-color:#e57373;color:#b71c1c}
+button{font:inherit;padding:3px 10px;border:1px solid var(--bd);background:#fff;cursor:pointer;border-radius:3px}
+button:hover{background:#efefea}
+button.primary{background:#2f5d8a;border-color:#2f5d8a;color:#fff}
+button.primary:hover{background:#27507a}
+input,select{font:inherit;padding:2px 4px;border:1px solid var(--bd);background:#fff;border-radius:3px}
+label{white-space:nowrap}
+nav{display:flex;gap:2px;padding:6px 10px 0;background:#f6f6f3;flex-wrap:wrap}
+nav button{border-radius:3px 3px 0 0}
+nav button.on{background:#fff;border-bottom-color:#fff;font-weight:bold}
+main{padding:10px}
+.panel{display:none}
+.panel.on{display:block}
+section{background:#fff;border:1px solid var(--bd);border-radius:4px;padding:8px 10px;margin-bottom:10px}
+section h3{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:#555}
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+th,td{border:1px solid #ddd;padding:3px 6px;text-align:left;vertical-align:top}
+th{background:#f0f0ec;white-space:nowrap}
+tr:nth-child(even) td{background:#fafaf8}
+.grid{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+.mut{color:#777;font-size:12px}
+.warn{color:#b71c1c}
+#flash{position:fixed;right:12px;bottom:12px;background:#2e7d32;color:#fff;padding:6px 14px;border-radius:4px;display:none;z-index:99}
+.med{display:inline-block;margin:1px 10px 1px 0}
+canvas{max-width:100%;border:1px solid var(--bd);background:#fff}
+</style>
+</head>
+<body>
+<header>
+  <b>🩺 Дневник давления</b>
+  <div class="wx" id="wx"></div>
+  <span id="pred" title="Прогноз личной модели">модель: —</span>
+  <button onclick="apiPost('/api/alarm/stop').then(()=>flash('Звук остановлен'))" title="Остановить будильник">⏹ звук</button>
+  <span style="flex:1"></span>
+  <button onclick="loadState()" title="Обновить">⟳</button>
+</header>
+<nav id="tabs"></nav>
+<main>
+
+  <div class="panel" id="p-meas">
+    <section>
+      <h3>Новое измерение</h3>
+      <div class="grid">
+        <label>Дата/время <input type="datetime-local" id="m-t"></label>
+        <label>Сист. <input type="number" id="m-sys" style="width:62px"></label>
+        <label>Диаст. <input type="number" id="m-dia" style="width:62px"></label>
+        <label>Пульс <input type="number" id="m-pulse" style="width:62px"></label>
+        <label>Примечание <input id="m-note" style="width:180px" placeholder="по желанию"></label>
+      </div>
+      <div style="margin-top:6px" id="m-meds"></div>
+      <div style="margin-top:8px" class="grid">
+        <button class="primary" id="m-save" onclick="saveM()">Сохранить</button>
+        <button id="m-cancel" style="display:none" onclick="cancelEdit()">Отменить правку</button>
+        <span id="m-ed" class="mut"></span>
+      </div>
+    </section>
+    <section>
+      <h3>Сегодня</h3>
+      <table id="today-t"><thead><tr><th>Время</th><th>Сис/Диаст</th><th>Пульс</th><th>Давл. мм</th><th>Лекарства</th><th></th></tr></thead><tbody></tbody></table>
+    </section>
+  </div>
+
+  <div class="panel" id="p-hist">
+    <section>
+      <h3>Фильтры</h3>
+      <div class="grid">
+        <label>С <input type="date" id="f-from"></label>
+        <label>По <input type="date" id="f-to"></label>
+        <span>
+          <button onclick="quick(1)">Сегодня</button>
+          <button onclick="quick(7)">7 дн</button>
+          <button onclick="quick(30)">30 дн</button>
+          <button onclick="quick(90)">90 дн</button>
+          <button onclick="quick(0)">Всё</button>
+        </span>
+        <label>Сис ≥ <input type="number" id="f-sys" style="width:56px"></label>
+        <label>Диаст ≥ <input type="number" id="f-dia" style="width:56px"></label>
+        <label>Пульс ≥ <input type="number" id="f-pulse" style="width:56px"></label>
+        <label><input type="checkbox" id="f-meds"> с лекарствами</label>
+        <button class="primary" onclick="applyFilter()">Применить</button>
+      </div>
+      <div style="margin-top:10px" class="grid">
+        <label>Формат <select id="ex-fmt"><option value="csv">CSV</option><option value="xlsx">Excel (XLSX)</option></select></label>
+        <button class="primary" onclick="doExport('doctor')">Таблица для врача</button>
+        <button onclick="doExport('rows')">По строкам</button>
+        <button onclick="doExport('days')">По дням</button>
+        <span class="mut">экспортируется текущий фильтр</span>
+      </div>
+    </section>
+    <section>
+      <h3>Измерения <span class="mut" id="h-count"></span></h3>
+      <table id="hist-t">
+        <thead><tr><th>Дата</th><th>Врем</th><th>Сис</th><th>Диаст</th><th>Пульс</th><th>мм</th><th>°C</th><th>Kp</th><th>Погода</th><th>Лекарства</th><th>Контекст</th><th>Прим.</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </div>
+
+  <div class="panel" id="p-log">
+    <section>
+      <h3>Эмоции (−10 … +10)</h3>
+      <div class="grid">
+        <label>Время <input type="datetime-local" id="e-t"></label>
+        <label>Значение <select id="e-v"></select></label>
+        <label>Прим. <input id="e-note" style="width:160px"></label>
+        <button class="primary" onclick="addEmo()">Добавить</button>
+      </div>
+      <div style="margin-top:6px"><table id="emo-t"><thead><tr><th>Дата/время</th><th>Значение</th><th>Прим.</th><th></th></tr></thead><tbody></tbody></table></div>
+    </section>
+    <section>
+      <h3>Шум / события</h3>
+      <div class="grid">
+        <label>Время <input type="datetime-local" id="n-t"></label>
+        <label>Тип <select id="n-type"></select></label>
+        <input id="n-custom" style="width:160px" placeholder="если «Другое…»">
+        <label>Прим. <input id="n-note" style="width:140px"></label>
+        <button class="primary" onclick="addNoise()">Добавить</button>
+      </div>
+      <div style="margin-top:6px"><table id="noise-t"><thead><tr><th>Дата/время</th><th>Тип</th><th>Прим.</th><th></th></tr></thead><tbody></tbody></table></div>
+    </section>
+    <section>
+      <h3>Сон</h3>
+      <div class="grid">
+        <label>Дата <input type="datetime-local" id="s-t"></label>
+        <label>Часы <input type="number" id="s-h" step="0.5" min="0" max="24" style="width:64px"></label>
+        <label>Качество (0–10) <select id="s-q"></select></label>
+        <label>Прим. <input id="s-note" style="width:140px"></label>
+        <button class="primary" onclick="addSleep()">Добавить</button>
+      </div>
+      <div class="grid" style="margin-top:8px">
+        <span class="mut">Импорт из Mi Band / Mi Fit (CSV): <input type="file" id="s-file" accept=".csv,text/csv"></span>
+        <button onclick="importSleep()">Импортировать CSV</button>
+      </div>
+      <div style="margin-top:6px"><table id="sleep-t"><thead><tr><th>Дата</th><th>Часы</th><th>Кач.</th><th>Прим.</th><th></th></tr></thead><tbody></tbody></table></div>
+    </section>
+  </div>
+
+  <div class="panel" id="p-nn">
+    <section>
+      <h3>Личная модель (12 + 2×лекарств → H(tanh) → 2, онлайн-обучение)</h3>
+      <div class="grid">
+        <span id="nn-pred" style="font-size:14px"></span>
+        <button class="primary" onclick="nnTrain()">Обучить</button>
+        <button onclick="nnTrainGa()">Генетическое обучение</button>
+        <button onclick="nnReset()">Сбросить модель</button>
+      </div>
+      <p class="mut" style="margin:6px 0 0">Фичи: час дня (sin/cos), день недели (sin/cos), барометр, температура, влажность, Kp, эмоция, шум, сон, кол-во лекарств + на каждое лекарство две PK-фичи: остаточная активность (затухание по T½ от каждого приёма) и положение в окне действия. При изменении списка лекарств модель переучивается автоматически.</p>
+    </section>
+    <section>
+      <h3>Потери (loss)</h3>
+      <canvas id="loss-cv" width="720" height="160"></canvas>
+    </section>
+    <section>
+      <h3>Прогнозы модели по последним 30 измерениям</h3>
+      <table id="nn-t"><thead><tr><th>Дата</th><th>Врем</th><th>Измерено</th><th>Прогноз</th><th>Δ сис</th><th>Δ диаст</th></tr></thead><tbody></tbody></table>
+    </section>
+  </div>
+
+  <div class="panel" id="p-al">
+    <section>
+      <h3>Будильники (mp3, зацикленно)</h3>
+      <div class="grid">
+        <label>Файл звука (рядом с exe) <input id="a-file" style="width:160px"></label>
+        <label>Напоминать, мин до <input type="number" id="a-ahead" style="width:56px"></label>
+        <button class="primary" onclick="saveAlarmsCommon()">Сохранить</button>
+        <button onclick="apiPost('/api/alarm/test').then(()=>flash('Воспроизводится тест'))">▶ Тест звука</button>
+        <button onclick="apiPost('/api/alarm/stop').then(()=>flash('Звук остановлен'))">⏹ Стоп</button>
+      </div>
+      <div style="margin-top:10px" class="grid">
+        <label>Время <input type="time" id="a-time" style="width:96px"></label>
+        <label>Подпись <input id="a-label" style="width:140px" placeholder="напр. «утро»"></label>
+        <label>Расписание <select id="a-mode" onchange="alModeUI()">
+          <option value="daily">ежедневно</option>
+          <option value="days">по дням недели</option>
+          <option value="everyN">каждые N дней</option>
+        </select></label>
+        <span id="a-days" style="display:none"></span>
+        <label id="a-every-wrap" style="display:none">каждые <input id="a-every" type="number" min="1" max="30" value="2" style="width:46px"> дн.</label>
+        <button class="primary" onclick="addAlarm()">Добавить будильник</button>
+      </div>
+      <div style="margin-top:8px"><table id="al-t"><thead><tr><th>Время</th><th>Подпись</th><th>Расписание</th><th>Вкл</th><th></th></tr></thead><tbody></tbody></table></div>
+      <p class="mut" style="margin:6px 0 0">Левый клик по значку в трее останавливает звенящий будильник; если будильник не звенит — открывает этот интерфейс.</p>
+    </section>
+  </div>
+
+  <div class="panel" id="p-meds">
+    <section>
+      <h3>Список лекарств</h3>
+      <div class="grid">
+        <input id="md-name" style="width:220px" placeholder="название лекарства">
+        <button class="primary" onclick="addMd()">Добавить</button>
+      </div>
+      <div style="margin-top:8px"><table id="md-t"><thead><tr><th>Название</th><th>T½, ч</th><th>Действие, ч</th><th></th></tr></thead><tbody></tbody></table></div>
+      <p class="mut" style="margin:6px 0 0">T½ — период полувыведения, «Действие» — длительность действия (часы). Для известных препаратов подставлены справочные значения (StatPearls/DailyMed), для неизвестных — 8/12 ч; всё можно править. НН использует эти параметры: «остаточная активность» и «окно действия» каждого лекарства. Список нечувствителен к регистру.</p>
+    </section>
+  </div>
+
+  <div class="panel" id="p-cfg">
+    <section>
+      <h3>Общее</h3>
+      <div class="grid">
+        <label>Порт <input type="number" id="c-port" style="width:70px"></label>
+        <label>Широта <input type="number" step="0.0001" id="c-lat" style="width:92px"></label>
+        <label>Долгота <input type="number" step="0.0001" id="c-lon" style="width:92px"></label>
+        <label>Опрос погоды, мин <input type="number" id="c-poll" style="width:60px"></label>
+        <button id="c-wxb" onclick="wxBackfill()" title="Подтянуть погоду и Kp из архива для старых записей, где они пустые">Заполнить погоду</button>
+        <label>mp3-файл <input id="c-alarm" style="width:140px"></label>
+        <label>Напоминать, мин до <input type="number" id="c-ahead" style="width:60px"></label>
+      </div>
+    </section>
+    <section>
+      <h3>Норма и оповещение</h3>
+      <div class="grid">
+        <label>Норма сис ≤ <input type="number" id="c-norms" style="width:60px"></label>
+        <label>Норма диаст ≤ <input type="number" id="c-normd" style="width:60px"></label>
+        <label>Пауза между popup, мин <input type="number" id="c-cd" style="width:60px"></label>
+        <label><input type="checkbox" id="c-auto" onchange="toggleAuto(this.checked)"> Автозапуск при старте Windows</label>
+      </div>
+      <p class="mut" style="margin:6px 0 0">Автозапуск (реестр HKCU\...\Run) применяется сразу, «Сохранить» не нужен.</p>
+    </section>
+    <section>
+      <h3>HomeAssistant (опционально)</h3>
+      <div class="grid">
+        <label>URL <input id="c-ha-url" style="width:220px" placeholder="http://home:8123"></label>
+        <label>Токен <input id="c-ha-tok" style="width:220px" title="в целях безопасности токен маскируется; реальный значение сохраняется, если поле не менять"></label>
+      </div>
+      <div class="grid" style="margin-top:6px">
+        <label>датчик давления <input id="c-ha-s0" style="width:180px"></label>
+        <label>температура <input id="c-ha-s1" style="width:180px"></label>
+        <label>влажность <input id="c-ha-s2" style="width:180px"></label>
+        <label>Kp <input id="c-ha-s3" style="width:180px"></label>
+      </div>
+      <p class="mut" style="margin:6px 0 0">Если указан entity_id датчика — его значение перекрывает погоду из API.</p>
+    </section>
+    <section>
+      <h3>Нейросеть</h3>
+      <div class="grid">
+        <label>обучающая ставка <input type="number" step="0.005" id="c-lr" style="width:80px"></label>
+        <label>скрытых нейронов <input type="number" id="c-hid" style="width:60px"></label>
+        <label>2-й слой <input type="number" id="c-hid2" style="width:60px"></label>
+        <label>эпох на запись <input type="number" id="c-ep" style="width:60px"></label>
+      </div>
+      <p class="mut" style="margin:6px 0 0">Новый размер слоя применится после «Сбросить модель» (вкладка «Модель»).</p>
+    </section>
+    <section>
+      <div class="grid">
+        <button class="primary" onclick="saveCfg()">Сохранить настройки</button>
+        <span id="cfg-msg" class="mut"></span>
+      </div>
+    </section>
+  </div>
+
+</main>
+<div id="flash"></div>
+
+<script>
+"use strict";
+const TABS=[["meas","Измерение"],["hist","История"],["log","Журнал"],["nn","Модель"],["al","Будильники"],["meds","Лекарства"],["cfg","Настройки"]];
+let S=null, act="meas", editingId=null, predMap={};
+let filter={from:"",to:"",sysMin:"",diaMin:"",pulseMin:"",onlyMeds:false};
+
+const $=i=>document.getElementById(i);
+const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+async function apiPost(p,b){const r=await fetch(p,{method:"POST",headers:{"Content-Type":"application/json;charset=utf-8"},body:JSON.stringify(b||{})});return r.json();}
+function flash(t,ok=true,ms=2500){const f=$("flash");f.textContent=t;f.style.display="block";f.style.background=ok?"#2e7d32":"#c62828";clearTimeout(f._t);f._t=setTimeout(()=>f.style.display="none",ms);}
+const p2=n=>String(n).padStart(2,"0");
+function nowDT(){const d=new Date();d.setSeconds(0,0);return d.getFullYear()+"-"+p2(d.getMonth()+1)+"-"+p2(d.getDate())+"T"+p2(d.getHours())+":"+p2(d.getMinutes());}
+function dstr(d){return d.getFullYear()+"-"+p2(d.getMonth()+1)+"-"+p2(d.getDate());}
+function fdt(t){const d=new Date(t);return p2(d.getDate())+"."+p2(d.getMonth()+1)+"."+d.getFullYear();}
+function fhm(t){const d=new Date(t);return p2(d.getHours())+":"+p2(d.getMinutes());}
+function dtLocal(t){const d=new Date(t);return d.getFullYear()+"-"+p2(d.getMonth()+1)+"-"+p2(d.getDate())+"T"+p2(d.getHours())+":"+p2(d.getMinutes());}
+function emoLabel(v){
+  if(v<=-10)return "глубокая горесть (смерть близкого)";
+  if(v<=-9)return "отчаяние";
+  if(v<=-8)return "сильный страх";
+  if(v<=-7)return "гнев";
+  if(v<=-6)return "тревога / напряжение";
+  if(v<=-5)return "раздражение";
+  if(v<=-4)return "досада, суета";
+  if(v<=-3)return "лёгкая усталость";
+  if(v<=-2)return "небольшая грусть";
+  if(v<=-1)return "спокойствие с лёгким негативом";
+  if(v===0)return "нейтрально";
+  if(v<=1)return "лёгкое удовлетворение";
+  if(v<=2)return "покой";
+  if(v<=3)return "лёгкая радость";
+  if(v<=4)return "хорошее настроение";
+  if(v<=5)return "радость";
+  if(v<=6)return "воодушевление";
+  if(v<=7)return "эйфория";
+  if(v<=8)return "восторг (важное событие)";
+  if(v<=9)return "экстремальное счастье";
+  return "пиковая радость (рождение ребёнка)";
+}
+
+/* ---------- вкладки ---------- */
+(function(){
+  const nav=$("tabs");
+  TABS.forEach(([id,name],i)=>{
+    const b=document.createElement("button");
+    b.textContent=name;b.dataset.t=id;
+    if(i===0)b.classList.add("on");
+    b.onclick=()=>{act=id;[...nav.children].forEach(x=>x.classList.toggle("on",x===b));
+      document.querySelectorAll(".panel").forEach(p=>p.classList.remove("on"));
+      $("p-"+id).classList.add("on");renderActive();};
+    nav.appendChild(b);
+  });
+  $("p-meas").classList.add("on");
+})();
+function switchTab(id){const b=[...$("tabs").children].find(x=>x.dataset.t===id);if(b)b.click();}
+function renderActive(){
+  if(!S)return;
+  if(act==="meas")renderMeas();
+  else if(act==="hist")renderHist();
+  else if(act==="log")renderLog();
+  else if(act==="nn")renderNn();
+  else if(act==="al")renderAlarms();
+  else if(act==="meds")renderMeds();
+  else if(act==="cfg")fillCfg();
+}
+
+/* ---------- состояние ---------- */
+async function loadState(){
+  try{S=await (await fetch("/api/state")).json();}catch(e){return;}
+  renderHeader();
+  if(act!=="cfg")renderActive(); // не затираем форму настроек во время ввода
+}
+setInterval(loadState,30000);
+
+function renderHeader(){
+  const w=S.weather||{};
+  $("wx").innerHTML=
+    (w.PressMm!=null?`<span>Давл ${Math.round(w.PressMm)} мм</span>`:"")+
+    (w.TempC!=null?`<span>${w.TempC.toFixed(1)} °C</span>`:"")+
+    (w.Hum!=null?`<span>Влажн ${Math.round(w.Hum)} %</span>`:"")+
+    (w.Kp!=null?`<span class="${w.Kp>=50?"warn":""}">Kp ${(w.Kp/10).toFixed(1)}</span>`:"")+
+    (w.Text?`<span>${esc(w.Text)}</span>`:"")+
+    (w.Updated?`<span class="up">(${fhm(w.Updated)})</span>`:"")+
+    `<button onclick="refreshWx()" title="Обновить погоду">⟳ погода</button>`;
+  const p=S.nn&&S.nn.predict, pe=$("pred");
+  if(p){
+    pe.textContent=`модель: ${Math.round(p.sys)} / ${Math.round(p.dia)}`;
+    pe.classList.toggle("bad",p.sys>S.cfg.NormSys||p.dia>S.cfg.NormDia);
+  }
+}
+async function refreshWx(){await apiPost("/api/weather/refresh");flash("Погода обновляется…");setTimeout(loadState,2000);}
+async function wxBackfill(){
+  flash("Заполняю погоду из архива… это может занять минуту",true,600000);
+  try{const j=await apiPost("/api/weather/backfill");
+    if(j.ok) flash(j.updated>0?("Готово: заполнено записей — "+j.updated):"Все записи уже с погодой — заполнять нечего",true,6000);
+    else flash("Ошибка: "+(j.err||"?"),false,6000);
+  }catch(e){flash("Ошибка: "+e,false,6000);} loadState();}
+
+/* ---------- измерение ---------- */
+function renderMeas(){
+  const box=$("m-meds");
+  const prev=[...box.querySelectorAll("input:checked")].map(i=>i.value);
+  const meds=S.cfg.Meds||[];
+  box.innerHTML=meds.length
+    ?meds.map(m=>`<label class="med"><input type="checkbox" value="${esc(m)}"> ${esc(m)}</label>`).join("")
+    :'<span class="mut">Список лекарств пуст — вкладка «Лекарства».</span>';
+  [...box.querySelectorAll("input")].forEach(i=>i.checked=prev.includes(i.value));
+  if(!$("m-t").value)$("m-t").value=nowDT();
+  const today=new Date().toDateString();
+  document.querySelector("#today-t tbody").innerHTML=
+    S.measurements.filter(m=>new Date(m.T).toDateString()===today).map(m=>
+      `<tr><td>${fhm(m.T)}</td><td>${m.Sys}/${m.Dia}</td><td>${m.Pulse}</td>`+
+      `<td>${m.PressMm!=null?Math.round(m.PressMm):""}</td><td>${esc(m.Meds.join(", "))}</td>`+
+      `<td><button onclick="editM('${m.Id}')">изм</button> <button onclick="delM('${m.Id}')">✕</button></td></tr>`
+    ).join("")||'<tr><td colspan="6" class="mut">сегодня измерений нет</td></tr>';
+}
+function saveM(){
+	const timeValue = $("m-t").value; // Получаем строку вида "2026-08-25T06:00"
+	if(!timeValue) { flash("Укажите дату и время", false); return; }
+	const body={
+		// Отправляем чистую локальную строку "2026-08-25T06:00" напрямую.
+		// Без .toISOString(), чтобы браузер НЕ переводил её в UTC+0.
+		t: timeValue, 
+		sys:+$("m-sys").value,
+		dia:+$("m-dia").value,
+		pulse:+$("m-pulse").value,
+		note:$("m-note").value,
+		meds:[...document.querySelectorAll("#m-meds input:checked")].map(i=>i.value)
+	};
+	if(!body.sys||!body.dia){flash("Укажите систолическое и диастолическое",false);return;}
+	(editingId?apiPost("/api/measurement/update",{id:editingId,...body}):apiPost("/api/measurement",body))
+		.then(j=>{
+			if(j.ok){flash("Сохранено");cancelEdit();document.querySelectorAll("#m-meds input").forEach(i=>i.checked=false);$("m-note").value="";loadState();}
+			else flash(j.err||"Ошибка",false);
+	});
+}
+
+function editM(id){
+  const m=S.measurements.find(x=>x.Id===id);if(!m)return;
+  editingId=id;
+  $("m-t").value=dtLocal(m.T);
+  $("m-sys").value=m.Sys;$("m-dia").value=m.Dia;$("m-pulse").value=m.Pulse;$("m-note").value=m.Note||"";
+  switchTab("meas");
+  [...document.querySelectorAll("#m-meds input")].forEach(i=>i.checked=(m.Meds||[]).includes(i.value));
+  $("m-save").textContent="Обновить запись";
+  $("m-cancel").style.display="";
+  $("m-ed").textContent="Правка: "+fdt(m.T)+" "+fhm(m.T);
+}
+function cancelEdit(){editingId=null;$("m-save").textContent="Сохранить";$("m-cancel").style.display="none";$("m-ed").textContent="";}
+function delM(id){if(!confirm("Удалить запись?"))return;apiPost("/api/measurement/delete",{id}).then(()=>{flash("Удалено");loadState();});}
+
+/* ---------- история / фильтры / экспорт ---------- */
+function applyFilter(){
+  filter={from:$("f-from").value,to:$("f-to").value,sysMin:$("f-sys").value,diaMin:$("f-dia").value,
+    pulseMin:$("f-pulse").value,onlyMeds:$("f-meds").checked};
+  renderHist();
+}
+function quick(d){
+  if(d===0){$("f-from").value="";$("f-to").value="";applyFilter();return;}
+  const a=new Date(),b=new Date();b.setDate(b.getDate()-d+1);
+  $("f-from").value=dstr(b);$("f-to").value=dstr(a);applyFilter();
+}
+function fList(){
+  let l=S.measurements.slice();
+  const F=filter;
+  if(F.from){const f=new Date(F.from+"T00:00:00");l=l.filter(m=>new Date(m.T)>=f);}
+  if(F.to){const t=new Date(F.to+"T23:59:59");l=l.filter(m=>new Date(m.T)<=t);}
+  if(F.sysMin!=="")l=l.filter(m=>m.Sys>=+F.sysMin);
+  if(F.diaMin!=="")l=l.filter(m=>m.Dia>=+F.diaMin);
+  if(F.pulseMin!=="")l=l.filter(m=>m.Pulse>=+F.pulseMin);
+  if(F.onlyMeds)l=l.filter(m=>m.Meds&&m.Meds.length>0);
+  return l.sort((a,b)=>new Date(b.T)-new Date(a.T));
+}
+function renderHist(){
+  const l=fList();
+  $("h-count").textContent="("+l.length+")";
+  document.querySelector("#hist-t tbody").innerHTML=l.map(m=>{
+    const ctx=[m.EmotionLabel?m.EmotionLabel:null,m.SleepH!=null?"сон "+m.SleepH.toFixed(1)+" ч":null,
+      m.Noise&&m.Noise.length?"шум: "+m.Noise.join(", "):null].filter(Boolean).join("; ");
+    return `<tr><td>${fdt(m.T)}</td><td>${fhm(m.T)}</td><td>${m.Sys}</td><td>${m.Dia}</td><td>${m.Pulse}</td>`+
+      `<td>${m.PressMm!=null?Math.round(m.PressMm):""}</td><td>${m.TempC!=null?m.TempC.toFixed(1):""}</td><td>${m.Kp!=null?(m.Kp/10).toFixed(1):""}</td>`+
+      `<td>${esc(m.Wx||"")}</td><td>${esc(m.Meds.join(", "))}</td><td class="mut">${esc(ctx)}</td><td class="mut">${esc(m.Note||"")}</td>`+
+      `<td><button onclick="editM('${m.Id}')">изм</button> <button onclick="delM('${m.Id}')">✕</button></td></tr>`;
+  }).join("")||'<tr><td colspan="13" class="mut">нет данных</td></tr>';
+}
+async function doExport(kind){
+  const r=await fetch("/api/export",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(Object.assign({},filter,{kind,fmt:$("ex-fmt").value}))});
+  if(!r.ok){flash("Ошибка экспорта",false);return;}
+  const b=await r.blob();
+  const cd=r.headers.get("Content-Disposition")||"";
+  const m=/filename="?([^";]+)"?/.exec(cd);
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(b);a.download=m?m[1]:"export."+kind;a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+  flash("Файл сформирован");
+}
+
+/* ---------- журнал: эмоции / шум / сон ---------- */
+function renderLog(){
+  const es=$("e-v");
+  if(!es.options.length){for(let v=-10;v<=10;v++)es.add(new Option((v>0?"+":"")+v+" — "+emoLabel(v),v));es.value="0";}
+  const qt=$("s-q");
+  if(!qt.options.length){for(let v=0;v<=10;v++)qt.add(new Option(String(v),v));qt.value="5";}
+  if(!$("s-h").value)$("s-h").value="7.5";
+  if(!$("e-t").value)$("e-t").value=nowDT();
+  if(!$("n-t").value)$("n-t").value=nowDT();
+  if(!$("s-t").value)$("s-t").value=nowDT();
+  $("n-type").innerHTML=(S.cfg.Noises||[]).map(t=>`<option>${esc(t)}</option>`).join("")+'<option value="__other">Другое…</option>';
+  $("n-type").value="тихо / ничего"; if(!$("n-type").value)$("n-type").selectedIndex=0;
+  fillList("emo-t",S.emotions.map(e=>
+    `<tr><td>${fdt(e.T)} ${fhm(e.T)}</td><td>${(e.Val>0?"+":"")+e.Val} — ${esc(emoLabel(e.Val))}</td><td>${esc(e.Note||"")}</td>`+
+    `<td><button onclick="delJ('${e.Id}')">✕</button></td></tr>`));
+  fillList("noise-t",S.noises.map(e=>
+    `<tr><td>${fdt(e.T)} ${fhm(e.T)}</td><td>${esc(e.Type||"")}</td><td>${esc(e.Note||"")}</td>`+
+    `<td><button onclick="delJ('${e.Id}')">✕</button></td></tr>`));
+  fillList("sleep-t",S.sleeps.map(e=>
+    `<tr><td>${fdt(e.T)}</td><td>${e.Hours}</td><td>${e.Quality}</td><td>${esc(e.Note||"")}</td>`+
+    `<td><button onclick="delJ('${e.Id}')">✕</button></td></tr>`));
+}
+function fillList(id,rows){document.querySelector("#"+id+" tbody").innerHTML=rows.join("")||'<tr><td colspan="5" class="mut">пусто</td></tr>';}
+function addEmo(){apiPost("/api/emotion",{t:$("e-t").value,val:+$("e-v").value,note:$("e-note").value})
+  .then(j=>{flash(j.ok?"Сохранено":(j.err||"Ошибка"),!!j.ok);loadState();});}
+function addNoise(){
+  const sel=$("n-type");
+  let type=sel.value,add="";
+  if(type==="__other"){type=$("n-custom").value.trim();add=type;
+    if(!type){flash("Введите тип шума",false);return;}}
+  apiPost("/api/noise",{t:$("n-t").value,type:type,addType:add,note:$("n-note").value})
+    .then(j=>{flash(j.ok?"Сохранено":(j.err||"Ошибка"),!!j.ok);if(add)$("n-custom").value="";loadState();});
+}
+function addSleep(){
+  const h=$("s-h").value===""?7.5:+$("s-h").value;// не задано -> нейтральные 7.5 ч
+  if(!(h>=0&&h<=24)){flash("Часы сна: 0–24",false);return;}
+  apiPost("/api/sleep",{t:$("s-t").value,h:h,q:+$("s-q").value,note:$("s-note").value})
+    .then(j=>{flash(j.ok?"Сохранено":(j.err||"Ошибка"),!!j.ok);loadState();});
+}
+function delJ(id){if(!confirm("Удалить запись?"))return;apiPost("/api/journal/delete",{id}).then(()=>{flash("Удалено");loadState();});}
+function importSleep(){
+  const f=$("s-file").files[0];
+  if(!f){flash("Выберите CSV-файл",false);return;}
+  const r=new FileReader();
+  r.onload=()=>apiPost("/api/sleep/import",{csv:r.result})
+    .then(j=>{flash(j.ok?(j.added>0?("Импортировано: "+j.added+" записей"):"Ничего не импортировано"):(j.err||"Ошибка"),!!(j.ok&&j.added>0));loadState();});
+  r.readAsText(f,"utf-8");
+}
+
+/* ---------- модель ---------- */
+async function renderNn(){
+  const p=S.nn&&S.nn.predict;
+  $("nn-pred").innerHTML=p?`Текущий прогноз: <b style="font-size:16px">${Math.round(p.sys)} / ${Math.round(p.dia)}</b> мм рт.ст.`:"";
+  drawLoss();
+  try{
+    const arr=await (await fetch("/api/nn/predictions")).json();
+    predMap={};arr.forEach(x=>predMap[x.id]=x);
+  }catch(e){}
+  const last=S.measurements.slice(0,30);
+  document.querySelector("#nn-t tbody").innerHTML=last.map(m=>{
+    const pr=predMap[m.Id];if(!pr)return "";
+    const ds=pr.ps-m.Sys,dd=pr.pd-m.Dia;
+    return `<tr><td>${fdt(m.T)}</td><td>${fhm(m.T)}</td><td>${m.Sys}/${m.Dia}</td><td>${Math.round(pr.ps)}/${Math.round(pr.pd)}</td>`+
+      `<td class="${Math.abs(ds)>10?"warn":"mut"}">${ds>=0?"+":""}${ds.toFixed(0)}</td>`+
+      `<td class="${Math.abs(dd)>8?"warn":"mut"}">${dd>=0?"+":""}${dd.toFixed(0)}</td></tr>`;
+  }).join("")||'<tr><td colspan="6" class="mut">измерений пока нет</td></tr>';
+}
+function drawLoss(){
+  const c=$("loss-cv"),x=c.getContext("2d"),L=(S.nn&&S.nn.loss)||[];
+  x.clearRect(0,0,c.width,c.height);
+  if(L.length<2){x.fillStyle="#999";x.font="12px Tahoma";x.fillText("Потери появятся после обучения (кнопка «Обучить»)",10,24);return;}
+  let mn=Math.min.apply(null,L.map(p=>p.L)),mx=Math.max.apply(null,L.map(p=>p.L));
+  if(mx-mn<1e-9)mx=mn+1e-9;
+  x.strokeStyle="#2f5d8a";x.lineWidth=1.5;x.beginPath();
+  L.forEach((p,i)=>{
+    const px=12+i*(c.width-24)/(L.length-1);
+    const py=c.height-16-((p.L-mn)/(mx-mn))*(c.height-40);
+    i?x.lineTo(px,py):x.moveTo(px,py);
+  });
+  x.stroke();
+  x.fillStyle="#777";x.font="11px Tahoma";
+  x.fillText(mx.toFixed(4),6,14);
+  x.fillText(mn.toFixed(4),6,c.height-22);
+  x.fillText(L[0].T,6,c.height-8);
+  x.fillText(L[L.length-1].T,c.width-80,c.height-8);
+}
+async function nnTrain(){flash("Обучение…");await apiPost("/api/nn/train");setTimeout(loadState,800);flash("Обучено");}
+async function nnTrainGa(){if(!confirm("Генетическое обучение: дольше, но может уйти из локального минимума. Продолжить?"))return;
+  flash("Генетическое обучение…");const j=await apiPost("/api/nn/train_ga");setTimeout(loadState,800);
+  flash(j.ok?("Готово. MSE="+j.loss):("Ошибка: "+(j.err||"?")),!!j.ok);}
+function nnReset(){if(!confirm("Сбросить модель? Выученные веса будут потеряны."))return;
+  apiPost("/api/nn/reset").then(()=>{flash("Модель сброшена");loadState();});}
+
+/* ---------- будильники ---------- */
+const DAYS=["Пн","Вт","Ср","Чт","Пт","Сб","Вс"];// ISO: 1=Пн..7=Вс
+function schedCell(a,i){
+  const m=a.Mode||"daily";
+  const sel=`<select onchange="setAlMode(${i},this.value)">`+
+    `<option value="daily"${m==="daily"?" selected":""}>ежедневно</option>`+
+    `<option value="days"${m==="days"?" selected":""}>по дням недели</option>`+
+    `<option value="everyN"${m==="everyN"?" selected":""}>каждые N дней</option></select> `;
+  if(m==="days"){
+    const ds=a.Days||[];
+    return sel+DAYS.map((d,k)=>`<label style="margin:0 3px 0 0;font-weight:normal"><input type="checkbox" ${ds.includes(k+1)?"checked":""} onchange="togDay(${i},${k+1},this.checked)"> ${d}</label>`).join("");
+  }
+  if(m==="everyN"){
+    const anc=a.Anchor?` <span class="mut">(с ${String(a.Anchor).slice(4,6)}.${String(a.Anchor).slice(6,8)})</span>`:"";
+    return sel+`каждые <input type="number" min="1" max="30" style="width:44px" value="${a.EveryN||1}" onchange="setEvery(${i},+this.value)"> дн.${anc}`;
+  }
+  return sel+"каждый день";
+}
+function renderAlarms(){
+  $("a-file").value=S.cfg.AlarmFile||"";
+  $("a-ahead").value=S.cfg.AlarmAheadMin;
+  if(!$("a-days").innerHTML)$("a-days").innerHTML=DAYS.map((d,k)=>`<label style="margin:0 3px 0 0"><input type="checkbox" class="a-day" value="${k+1}"> ${d}</label>`).join("");
+  document.querySelector("#al-t tbody").innerHTML=(S.cfg.Alarms||[]).map((a,i)=>
+    `<tr><td><input type="time" value="${esc(a.Time)}" style="width:96px" onchange="setAlTime(${i},this.value)"></td>`+
+    `<td><input value="${esc(a.Label||"")}" style="width:130px" placeholder="без подписи" onchange="setAlLabel(${i},this.value)"></td><td>${schedCell(a,i)}</td>`+
+    `<td><input type="checkbox" ${a.Enabled?"checked":""} onchange="toggleAl(${i},this.checked)"></td>`+
+    `<td><button onclick="delAl(${i})">✕</button></td></tr>`
+  ).join("")||'<tr><td colspan="5" class="mut">будильников нет</td></tr>';
+}
+function saveAlarmsCommon(){
+  S.cfg.AlarmFile=$("a-file").value.trim();
+  S.cfg.AlarmAheadMin=+$("a-ahead").value||0;
+  apiPost("/api/config",S.cfg).then(j=>{flash(j.ok?"Сохранено":(j.err||"Ошибка"),!!j.ok);loadState();});
+}
+function toggleAl(i,on){S.cfg.Alarms[i].Enabled=on;apiPost("/api/config",S.cfg).then(loadState);}
+function setAlTime(i,v){const a=S.cfg.Alarms[i];if(!v){loadState();return;}
+  a.Time=v;apiPost("/api/config",S.cfg).then(j=>{flash(j.ok?("Будильник на "+v+" обновлён"):"Ошибка",!!j.ok);loadState();});}
+function setAlLabel(i,v){S.cfg.Alarms[i].Label=v.trim();apiPost("/api/config",S.cfg).then(j=>{flash(j.ok?"Подпись сохранена":"Ошибка",!!j.ok);loadState();});}
+function alModeUI(){
+  const m=$("a-mode").value;
+  $("a-days").style.display=m==="days"?"":"none";
+  $("a-every-wrap").style.display=m==="everyN"?"":"none";
+}
+function setAlMode(i,v){const a=S.cfg.Alarms[i];a.Mode=v;if(v==="days"&&!a.Days)a.Days=[];apiPost("/api/config",S.cfg).then(loadState);}
+function togDay(i,d,on){const a=S.cfg.Alarms[i];a.Days=a.Days||[];const j=a.Days.indexOf(d);if(on&&j<0)a.Days.push(d);if(!on&&j>=0)a.Days.splice(j,1);apiPost("/api/config",S.cfg).then(loadState);}
+function setEvery(i,v){S.cfg.Alarms[i].EveryN=Math.max(1,+v||1);apiPost("/api/config",S.cfg).then(loadState);}
+function addAlarm(){
+  const t=$("a-time").value;
+  if(!t){flash("Укажите время",false);return;}
+  const mode=$("a-mode").value;
+  const al={Time:t,Label:$("a-label").value.trim(),Enabled:true,Mode:mode};
+  if(mode==="days"){
+    al.Days=[...document.querySelectorAll(".a-day:checked")].map(c=>+c.value);
+    if(!al.Days.length){flash("Отметьте хотя бы один день недели",false);return;}
+  }
+  if(mode==="everyN")al.EveryN=Math.max(1,+$("a-every").value||1);
+  S.cfg.Alarms.push(al);
+  apiPost("/api/config",S.cfg).then(j=>{flash(j.ok?"Будильник добавлен":(j.err||"Ошибка"),!!j.ok);$("a-label").value="";loadState();});
+}
+function delAl(i){
+  if(!confirm("Удалить будильник?"))return;
+  S.cfg.Alarms.splice(+i,1);
+  apiPost("/api/config",S.cfg).then(j=>{flash(j.ok?"Будильник удалён":"Ошибка",!!j.ok);loadState();});
+}
+
+/* ---------- лекарства ---------- */
+function normMd(s){return s.toLowerCase().replace(/ё/g,"е").replace(/[^a-zа-я0-9]/gi,"");}
+function renderMeds(){
+  const pk=S.medPk||{};
+  document.querySelector("#md-t tbody").innerHTML=(S.cfg.Meds||[]).map((m,i)=>{
+    const p=pk[m]||{half:8,dur:12};
+    return `<tr><td>${esc(m)}${p.known?"":' <span class="mut" title="в справочнике не найдено — значения по умолчанию, отредактируйте">(? )</span>'}</td>`+
+      `<td><input type="number" step="0.5" min="0.25" style="width:64px" value="${p.half}" onchange="setMdPk(${i},'HalfH',this.value)"></td>`+
+      `<td><input type="number" step="1" min="0.5" style="width:64px" value="${p.dur}" onchange="setMdPk(${i},'DurH',this.value)"></td>`+
+      `<td><button onclick="delMd(${i})">✕</button></td></tr>`;
+  }).join("")||'<tr><td colspan="4" class="mut">список пуст</td></tr>';
+}
+function setMdPk(i,field,v){
+  const name=S.cfg.Meds[i];
+  const val=Math.max(field==="HalfH"?0.25:0.5,+v||0);
+  S.cfg.MedKt=S.cfg.MedKt||{};
+  const cur=(S.cfg.MedKt||{})[name]||{HalfH:8,DurH:12};
+  const pk=S.medPk&&S.medPk[name]?{HalfH:S.medPk[name].half,DurH:S.medPk[name].dur}:{HalfH:8,DurH:12};
+  S.cfg.MedKt[name]=Object.assign({},pk,cur);
+  S.cfg.MedKt[name][field]=val;
+  apiPost("/api/config",S.cfg).then(j=>{flash(j.ok?"PK сохранено":(j.err||"Ошибка"),!!j.ok);loadState();});
+}
+function addMd(){
+  const v=$("md-name").value.trim();
+  if(!v){flash("Введите название",false);return;}
+  if((S.cfg.Meds||[]).some(x=>normMd(x)===normMd(v))){flash("Уже в списке (реестр нечувствителен к регистру)",false);return;}
+  S.cfg.Meds.push(v);$("md-name").value="";
+  apiPost("/api/config",S.cfg).then(j=>{flash(j.ok?"Добавлено":(j.err||"Ошибка"),!!j.ok);loadState();});
+}
+function delMd(i){S.cfg.Meds.splice(i,1);apiPost("/api/config",S.cfg).then(loadState);}
+
+/* ---------- настройки ---------- */
+function fillCfg(){
+  const c=S.cfg;
+  $("c-port").value=c.Port;$("c-lat").value=c.Lat;$("c-lon").value=c.Lon;$("c-poll").value=c.PollMin;
+  $("c-alarm").value=c.AlarmFile||"";$("c-ahead").value=c.AlarmAheadMin;
+  $("c-norms").value=c.NormSys;$("c-normd").value=c.NormDia;$("c-cd").value=c.PopupCooldownMin;
+  $("c-auto").checked=!!S.autostart;
+  $("c-ha-url").value=(c.Ha&&c.Ha.Url)||"";
+  $("c-ha-tok").value=(c.Ha&&c.Ha.Token)||"";
+  const s=(c.Ha&&c.Ha.Sensors)||{};
+  $("c-ha-s0").value=s.pressure||"";$("c-ha-s1").value=s.temp||"";
+  $("c-ha-s2").value=s.humidity||"";$("c-ha-s3").value=s.kp||"";
+  $("c-lr").value=c.Nn.Lr;$("c-hid").value=c.Nn.Hidden;$("c-hid2").value=c.Nn.Hidden2;$("c-ep").value=c.Nn.Epochs;
+  const miss=(S.measurements||[]).filter(m=>m.PressMm==null||m.TempC==null||m.Hum==null||m.Kp==null).length;
+  $("c-wxb").textContent=miss?("Заполнить погоду ("+miss+")"):"Погода заполнена ✓";
+}
+function toggleAuto(on){
+  apiPost("/api/autostart",{on:on}).then(j=>{
+    flash(j.ok?(on?"Автозапуск: включён":"Автозапуск: выключен"):(j.err||"Ошибка"),!!j.ok);
+    loadState();
+  });
+}
+function saveCfg(){
+  const c=S.cfg;
+  c.Port=+$("c-port").value;c.Lat=+$("c-lat").value;c.Lon=+$("c-lon").value;c.PollMin=+$("c-poll").value;
+  c.AlarmFile=$("c-alarm").value.trim();c.AlarmAheadMin=+$("c-ahead").value||0;
+  c.NormSys=+$("c-norms").value;c.NormDia=+$("c-normd").value;c.PopupCooldownMin=+$("c-cd").value;
+  c.Ha=c.Ha||{Url:"",Token:"",Sensors:{pressure:"",temp:"",humidity:"",kp:""}};
+  c.Ha.Url=$("c-ha-url").value.trim();c.Ha.Token=$("c-ha-tok").value.trim();
+  c.Ha.Sensors={pressure:$("c-ha-s0").value.trim(),temp:$("c-ha-s1").value.trim(),
+    humidity:$("c-ha-s2").value.trim(),kp:$("c-ha-s3").value.trim()};
+  c.Nn=c.Nn||{Lr:0.05,Hidden:12,Hidden2:16,Epochs:30};
+  c.Nn.Lr=+$("c-lr").value;c.Nn.Hidden=+$("c-hid").value;c.Nn.Hidden2=+$("c-hid2").value||16;c.Nn.Epochs=+$("c-ep").value;
+  apiPost("/api/config",c).then(j=>{
+    if(!j.ok){$("cfg-msg").textContent="";flash(j.err||"Ошибка",false);return;}
+    if(j.restartRequired){
+      $("cfg-msg").textContent="⚠ Порт изменён — перезапустите приложение (Выход в трее и запуск снова).";
+      flash("Порт изменён — нужен перезапуск",false);
+    }else{
+      $("cfg-msg").textContent="Сохранено "+new Date().toTimeString().slice(0,5);
+      flash("Настройки сохранены");
+    }
+    loadState();
+  });
+}
+
+/* ---------- старт ---------- */
+//["m-sys","m-dia","m-pulse","m-note"].forEach(id=>$(id).addEventListener("keydown",e=>{if(e.key==="Enter")saveM();}));
+document.addEventListener("DOMContentLoaded", () => {
+	// Список ID элементов строго в том порядке, в котором должен ходить фокус
+	const focusChain = ["m-t", "m-sys", "m-dia", "m-pulse", "m-save"];
+	focusChain.forEach((id,index)=>{
+		const el=document.getElementById(id);
+		if(!el)return;
+		el.addEventListener("keydown",(e)=>{
+			if(e.key==="Enter"){
+				const nextId=focusChain[index+1];
+				if(nextId){
+					e.preventDefault();
+					const nextEl=document.getElementById(nextId);
+					nextEl.focus();
+					if(nextEl.select)nextEl.select();
+				}
+			}
+		});
+	});
+	loadState();
+});
+
+</script>
+</body>
+</html>
