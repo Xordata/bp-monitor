@@ -3,48 +3,55 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#2f5d8a">
 <title>BpMonitor</title>
 <style>
-:root{--bd:#c9c9c4}
+:root{color-scheme:light;--bg:#f6f6f3;--fg:#222;--card:#fff;--bd:#c9c9c4;--mut:#777;--accent:#2f5d8a;--accent-h:#27507a;--thead:#f0f0ec;--row:#fafaf8;--hover:#efefea;--warn:#b71c1c;--warn-bg:#fdecea;--warn-bd:#e57373;--grid:#eee;--canvas:#fff;--legend:#444;--s-sys:#c0392b;--s-dia:#2f5d8a;--s-pulse:#2e7d32}
+@media (prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#14161a;--fg:#e8eaf0;--card:#1d2026;--bd:#3a3f48;--mut:#9aa3b5;--accent:#4a7fb5;--accent-h:#5d92c9;--thead:#262a31;--row:#23262c;--hover:#2a2f37;--warn:#ff8a80;--warn-bg:#3b2222;--warn-bd:#8a4a4a;--grid:#33373f;--canvas:#1d2026;--legend:#aab2c0;--s-sys:#ef5350;--s-dia:#64b5f6;--s-pulse:#66bb6a}}
 *{box-sizing:border-box}
-body{font:13px/1.45 Tahoma,Verdana,sans-serif;margin:0;background:#f6f6f3;color:#222}
-header{background:#fff;border-bottom:1px solid var(--bd);padding:6px 10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;position:sticky;top:0;z-index:5}
+body{font:13px/1.45 Tahoma,Verdana,sans-serif;margin:0;background:var(--bg);color:var(--fg)}
+header{background:var(--card);border-bottom:1px solid var(--bd);padding:6px 10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;position:sticky;top:0;z-index:5}
 header b{font-size:14px}
 .wx{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .wx span{white-space:nowrap}
-.wx .up{color:#777}
-#pred{padding:2px 8px;border:1px solid var(--bd);background:#fff;border-radius:3px}
-#pred.bad{background:#fdecea;border-color:#e57373;color:#b71c1c}
-button{font:inherit;padding:3px 10px;border:1px solid var(--bd);background:#fff;cursor:pointer;border-radius:3px}
-button:hover{background:#efefea}
-button.primary{background:#2f5d8a;border-color:#2f5d8a;color:#fff}
-button.primary:hover{background:#27507a}
-input,select{font:inherit;padding:2px 4px;border:1px solid var(--bd);background:#fff;border-radius:3px}
+.wx .up{color:var(--mut)}
+#pred{padding:2px 8px;border:1px solid var(--bd);background:var(--card);border-radius:3px}
+#pred.bad{background:var(--warn-bg);border-color:var(--warn-bd);color:var(--warn)}
+button{font:inherit;padding:3px 10px;border:1px solid var(--bd);background:var(--card);color:var(--fg);cursor:pointer;border-radius:3px}
+button:hover{background:var(--hover)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.primary:hover{background:var(--accent-h)}
+input,select{font:inherit;padding:2px 4px;border:1px solid var(--bd);background:var(--card);color:var(--fg);border-radius:3px}
 label{white-space:nowrap}
-nav{display:flex;gap:2px;padding:6px 10px 0;background:#f6f6f3;flex-wrap:wrap}
+nav{display:flex;gap:2px;padding:6px 10px 0;background:var(--bg);flex-wrap:wrap}
 nav button{border-radius:3px 3px 0 0}
-nav button.on{background:#fff;border-bottom-color:#fff;font-weight:bold}
+nav button.on{background:var(--card);border-bottom-color:var(--card);font-weight:bold}
 main{padding:10px}
 .panel{display:none}
 .panel.on{display:block}
-section{background:#fff;border:1px solid var(--bd);border-radius:4px;padding:8px 10px;margin-bottom:10px}
-section h3{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:#555}
+section{background:var(--card);border:1px solid var(--bd);border-radius:4px;padding:8px 10px;margin-bottom:10px}
+section h3{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--mut)}
 table{border-collapse:collapse;width:100%;font-size:12.5px}
-th,td{border:1px solid #ddd;padding:3px 6px;text-align:left;vertical-align:top}
-th{background:#f0f0ec;white-space:nowrap}
+th,td{border:1px solid var(--bd);padding:3px 6px;text-align:left;vertical-align:top}
+th{background:var(--thead);white-space:nowrap}
 .scrollbox{max-height:260px;overflow:auto}
 .scrollbox thead th{position:sticky;top:0;z-index:1}
-tr:nth-child(even) td{background:#fafaf8}
+tr:nth-child(even) td{background:var(--row)}
 .grid{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
-.mut{color:#777;font-size:12px}
-.warn{color:#b71c1c}
+.mut{color:var(--mut);font-size:12px}
+.warn{color:var(--warn)}
 #flash{position:fixed;right:12px;bottom:12px;background:#2e7d32;color:#fff;padding:6px 14px;border-radius:4px;display:none;z-index:99}
 .med{display:inline-block;margin:1px 10px 1px 0}
-canvas{max-width:100%;border:1px solid var(--bd);background:#fff}
-.fc{display:inline-flex;flex-direction:column;align-items:center;border:1px solid var(--bd);border-radius:4px;padding:3px 7px;margin:2px 3px 2px 0;font-size:12px;background:#fff}
+canvas{max-width:100%;border:1px solid var(--bd);background:var(--canvas)}
+.fc{display:inline-flex;flex-direction:column;align-items:center;border:1px solid var(--bd);border-radius:4px;padding:3px 7px;margin:2px 3px 2px 0;font-size:12px;background:var(--card)}
 .fc b{font-size:13px}
-.fc.bad{background:#fdecea;border-color:#e57373;color:#b71c1c}
-.fc .up{color:#777;font-size:11px}
+.fc.bad{background:var(--warn-bg);border-color:var(--warn-bd);color:var(--warn)}
+.fc .up{color:var(--mut);font-size:11px}
+#mbg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:60;justify-content:center;align-items:flex-start;padding:6vh 10px 10px;overflow:auto}
+#mbg.on{display:flex}
+#mbox{background:var(--card);border:1px solid var(--bd);border-radius:8px;max-width:680px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.35)}
+#mhead{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--bd)}
+#mbody{padding:12px 14px}
 @media (max-width:760px){
   header{padding:6px;gap:6px}
   header b{font-size:13px}
@@ -58,6 +65,7 @@ canvas{max-width:100%;border:1px solid var(--bd);background:#fff}
   input,select,button{font-size:14px;padding:5px 8px}
   input[type=number]{width:70px}
   #bp-cv,#loss-cv{min-width:640px}
+  #mbg{padding:10px}
 }
 </style>
 </head>
@@ -68,26 +76,15 @@ canvas{max-width:100%;border:1px solid var(--bd);background:#fff}
   <span id="pred" title="Прогноз личной модели">модель: —</span>
   <button onclick="apiPost('/api/alarm/stop').then(()=>flash('Звук остановлен'))" title="Остановить будильник">⏹ звук</button>
   <span style="flex:1"></span>
-  <button onclick="loadState()" title="Обновить">⟳</button>
 </header>
 <nav id="tabs"></nav>
 <main>
 
   <div class="panel" id="p-meas">
     <section>
-      <h3>Новое измерение</h3>
       <div class="grid">
-        <label>Дата/время <input type="datetime-local" id="m-t"></label>
-        <label>Сист. <input type="number" id="m-sys" style="width:62px"></label>
-        <label>Диаст. <input type="number" id="m-dia" style="width:62px"></label>
-        <label>Пульс <input type="number" id="m-pulse" style="width:62px"></label>
-        <label>Примечание <input id="m-note" style="width:180px" placeholder="по желанию"></label>
-      </div>
-      <div style="margin-top:6px" id="m-meds"></div>
-      <div style="margin-top:8px" class="grid">
-        <button class="primary" id="m-save" onclick="saveM()">Сохранить</button>
-        <button id="m-cancel" style="display:none" onclick="cancelEdit()">Отменить правку</button>
-        <span id="m-ed" class="mut"></span>
+        <button class="primary" onclick="openM()">＋ Замер</button>
+        <span class="mut">дата/время, верх/низ, пульс, лекарства — в компактном окне</span>
       </div>
     </section>
     <section>
@@ -139,35 +136,18 @@ canvas{max-width:100%;border:1px solid var(--bd);background:#fff}
   <div class="panel" id="p-log">
     <section>
       <h3>Эмоции (−10 … +10)</h3>
-      <div class="grid">
-        <label>Время <input type="datetime-local" id="e-t"></label>
-        <label>Значение <select id="e-v"></select></label>
-        <label>Прим. <input id="e-note" style="width:160px"></label>
-        <button class="primary" onclick="addEmo()">Добавить</button>
-      </div>
+      <div class="grid"><button class="primary" onclick="openEmo()">＋ Эмоция</button></div>
       <div class="scrollbox" style="margin-top:6px"><table id="emo-t"><thead><tr><th>Дата/время</th><th>Значение</th><th>Прим.</th><th></th></tr></thead><tbody></tbody></table></div>
     </section>
     <section>
       <h3>Шум / события</h3>
-      <div class="grid">
-        <label>Время <input type="datetime-local" id="n-t"></label>
-        <label>Тип <select id="n-type"></select></label>
-        <input id="n-custom" style="width:160px" placeholder="если «Другое…»">
-        <label>Прим. <input id="n-note" style="width:140px"></label>
-        <button class="primary" onclick="addNoise()">Добавить</button>
-      </div>
+      <div class="grid"><button class="primary" onclick="openNoise()">＋ Шум / событие</button></div>
       <div class="scrollbox" style="margin-top:6px"><table id="noise-t"><thead><tr><th>Дата/время</th><th>Тип</th><th>Прим.</th><th></th></tr></thead><tbody></tbody></table></div>
     </section>
     <section>
       <h3>Сон</h3>
       <div class="grid">
-        <label>Дата <input type="datetime-local" id="s-t"></label>
-        <label>Часы <input type="number" id="s-h" step="0.5" min="0" max="24" style="width:64px"></label>
-        <label>Качество (0–10) <select id="s-q"></select></label>
-        <label>Прим. <input id="s-note" style="width:140px"></label>
-        <button class="primary" onclick="addSleep()">Добавить</button>
-      </div>
-      <div class="grid" style="margin-top:8px">
+        <button class="primary" onclick="openSleep()">＋ Сон</button>
         <span class="mut">Импорт из Mi Band / Mi Fit (CSV): <input type="file" id="s-file" accept=".csv,text/csv"></span>
         <button onclick="importSleep()">Импортировать CSV</button>
       </div>
@@ -222,16 +202,7 @@ canvas{max-width:100%;border:1px solid var(--bd);background:#fff}
         <button onclick="apiPost('/api/alarm/stop').then(()=>flash('Звук остановлен'))">⏹ Стоп</button>
       </div>
       <div style="margin-top:10px" class="grid">
-        <label>Время <input type="time" id="a-time" style="width:96px"></label>
-        <label>Подпись <input id="a-label" style="width:140px" placeholder="напр. «утро»"></label>
-        <label>Расписание <select id="a-mode" onchange="alModeUI()">
-          <option value="daily">ежедневно</option>
-          <option value="days">по дням недели</option>
-          <option value="everyN">каждые N дней</option>
-        </select></label>
-        <span id="a-days" style="display:none"></span>
-        <label id="a-every-wrap" style="display:none">каждые <input id="a-every" type="number" min="1" max="30" value="2" style="width:46px"> дн.</label>
-        <button class="primary" onclick="addAlarm()">Добавить будильник</button>
+        <button class="primary" onclick="openAlarm()">＋ Будильник</button>
       </div>
       <div style="margin-top:8px"><table id="al-t"><thead><tr><th>Время</th><th>Подпись</th><th>Расписание</th><th>Вкл</th><th></th></tr></thead><tbody></tbody></table></div>
       <p class="mut" style="margin:6px 0 0">Левый клик по значку в трее останавливает звенящий будильник; если будильник не звенит — открывает этот интерфейс.</p>
@@ -241,10 +212,7 @@ canvas{max-width:100%;border:1px solid var(--bd);background:#fff}
   <div class="panel" id="p-meds">
     <section>
       <h3>Список лекарств</h3>
-      <div class="grid">
-        <input id="md-name" style="width:220px" placeholder="название лекарства">
-        <button class="primary" onclick="addMd()">Добавить</button>
-      </div>
+      <div class="grid"><button class="primary" onclick="openMd()">＋ Лекарство</button></div>
       <div style="margin-top:8px"><table id="md-t"><thead><tr><th>Название</th><th>T½, ч</th><th>Действие, ч</th><th>Расписание приёма</th><th>Отметка</th><th></th></tr></thead><tbody></tbody></table></div>
       <p class="mut" style="margin:6px 0 0">T½ — период полувыведения, «Действие» — длительность действия (часы). Для известных препаратов подставлены справочные значения (medpk.json), для неизвестных — 8/12 ч; всё можно править. НН использует эти параметры: «остаточная активность» и «окно действия» каждого лекарства. «Расписание приёма» (через запятую, HH:MM) — балюн-напоминание в трее. Список нечувствителен к регистру.</p>
     </section>
@@ -255,12 +223,7 @@ canvas{max-width:100%;border:1px solid var(--bd);background:#fff}
     </section>
     <section>
       <h3>Справочник ФК (medpk.json)</h3>
-      <div class="grid">
-        <input id="db-name" style="width:180px" placeholder="МНН или бренд">
-        <input id="db-half" type="number" step="0.5" min="0.25" style="width:70px" placeholder="T½ ч">
-        <input id="db-dur" type="number" step="1" min="0.5" style="width:90px" placeholder="действие ч">
-        <button class="primary" onclick="dbAdd()">В справочник</button>
-      </div>
+      <div class="grid"><button class="primary" onclick="openDb()">＋ В справочник</button></div>
       <div style="margin-top:8px;max-height:280px;overflow:auto"><table id="db-t"><thead><tr><th>Название</th><th>T½, ч</th><th>Действие, ч</th><th></th></tr></thead><tbody></tbody></table></div>
       <p class="mut" style="margin:6px 0 0">Хранится в <code>medpk.json</code> рядом с программой — правится без пересборки (или редактированием файла). Используется, когда у лекарства нет персонального переопределения в таблице выше.</p>
     </section>
@@ -270,30 +233,25 @@ canvas{max-width:100%;border:1px solid var(--bd);background:#fff}
     <section>
       <h3>Общее</h3>
       <div class="grid">
-        <label>Порт <input type="number" id="c-port" style="width:70px"></label>
-        <label>Широта <input type="number" step="0.0001" id="c-lat" style="width:92px"></label>
-        <label>Долгота <input type="number" step="0.0001" id="c-lon" style="width:92px"></label>
-        <label>Опрос погоды, мин <input type="number" id="c-poll" style="width:60px"></label>
+        <span id="sum-gen" class="mut"></span>
+        <button onclick="openCfgGen()">Изменить</button>
         <button id="c-wxb" onclick="wxBackfill()" title="Подтянуть погоду и Kp из архива для старых записей, где они пустые">Заполнить погоду</button>
         <button onclick="compactDb()" title="Переписать data.bin из текущего состояния: удалить тумстоуны и копии правок">Сжать базу</button>
-        <label>mp3-файл <input id="c-alarm" style="width:140px"></label>
-        <label>Напоминать, мин до <input type="number" id="c-ahead" style="width:60px"></label>
       </div>
     </section>
     <section>
       <h3>Пользователь</h3>
       <div class="grid">
-        <label>Дата рождения <input type="date" id="c-dob" style="width:140px"></label>
-        <label>Пол <select id="c-sex" style="width:120px"><option value="">не указан</option><option value="m">мужской</option><option value="f">женский</option></select></label>
+        <span id="sum-user" class="mut"></span>
+        <button onclick="openCfgUser()">Изменить</button>
       </div>
       <p class="mut" style="margin:6px 0 0">Модель использует их как признаки «возраст» (на момент каждого измерения) и «пол»; после изменения модель переобучается автоматически.</p>
     </section>
     <section>
       <h3>Норма и оповещение</h3>
       <div class="grid">
-        <label>Норма сис ≤ <input type="number" id="c-norms" style="width:60px"></label>
-        <label>Норма диаст ≤ <input type="number" id="c-normd" style="width:60px"></label>
-        <label>Пауза между popup, мин <input type="number" id="c-cd" style="width:60px"></label>
+        <span id="sum-norm" class="mut"></span>
+        <button onclick="openCfgNorm()">Изменить</button>
         <label><input type="checkbox" id="c-auto" onchange="toggleAuto(this.checked)"> Автозапуск при старте Windows</label>
       </div>
       <p class="mut" style="margin:6px 0 0">Автозапуск (реестр HKCU\...\Run) применяется сразу, «Сохранить» не нужен.</p>
@@ -301,43 +259,24 @@ canvas{max-width:100%;border:1px solid var(--bd);background:#fff}
     <section>
       <h3>HomeAssistant (опционально)</h3>
       <div class="grid">
-        <label>URL <input id="c-ha-url" style="width:220px" placeholder="http://home:8123"></label>
-        <label>Токен <input id="c-ha-tok" style="width:220px" title="в целях безопасности токен маскируется; реальный значение сохраняется, если поле не менять"></label>
-      </div>
-      <div class="grid" style="margin-top:6px">
-        <label>датчик давления <input id="c-ha-s0" style="width:180px"></label>
-        <label>температура <input id="c-ha-s1" style="width:180px"></label>
-        <label>влажность <input id="c-ha-s2" style="width:180px"></label>
-        <label>Kp <input id="c-ha-s3" style="width:180px"></label>
+        <span id="sum-ha" class="mut"></span>
+        <button onclick="openCfgHa()">Изменить</button>
       </div>
       <p class="mut" style="margin:6px 0 0">Если указан entity_id датчика — его значение перекрывает погоду из API.</p>
     </section>
     <section>
       <h3>Нейросеть</h3>
       <div class="grid">
-        <label>обучающая ставка <input type="number" step="0.005" id="c-lr" style="width:80px"></label>
-        <label>скрытых нейронов <input type="number" id="c-hid" style="width:60px"></label>
-        <label>2-й слой <input type="number" id="c-hid2" style="width:60px"></label>
-        <label>эпох на запись <input type="number" id="c-ep" style="width:60px"></label>
+        <span id="sum-nn" class="mut"></span>
+        <button onclick="openCfgNn()">Изменить</button>
       </div>
       <p class="mut" style="margin:6px 0 0">Новый размер слоя применится после «Сбросить модель» (вкладка «Модель»).</p>
     </section>
     <section>
       <h3>Синхронизация с bp.xor.world</h3>
       <div class="grid">
-        <label><input type="checkbox" id="c-sync-on"> Синхронизация</label>
-        <label>Токен <input id="c-sync-tok" style="width:220px" placeholder="из веб-настроек «Устройства»"></label>
-        <label>Интервал, мин <input type="number" id="c-sync-int" style="width:60px"></label>
-      </div>
-      <div class="grid" style="margin-top:6px">
-        <label>URL <input id="c-sync-url" style="width:220px"></label>
-        <label>Конфиг
-          <select id="c-sync-cfg" style="width:170px">
-            <option value="">не синхронизировать</option>
-            <option value="desktop">десктоп главный</option>
-            <option value="server">сервер главный</option>
-          </select>
-        </label>
+        <span id="sum-sync" class="mut"></span>
+        <button onclick="openCfgSync()">Изменить</button>
         <button onclick="syncNow()">Синхронизировать сейчас</button>
       </div>
       <p class="mut" id="sync-state" style="margin:6px 0 0"></p>
@@ -352,17 +291,22 @@ canvas{max-width:100%;border:1px solid var(--bd);background:#fff}
         <span class="mut">импорт заменит все текущие данные (перед ним создастся архив в backups\\)</span>
       </div>
     </section>
-    <section>
-      <div class="grid">
-        <button class="primary" onclick="saveCfg()">Сохранить настройки</button>
-        <span id="cfg-msg" class="mut"></span>
-      </div>
-    </section>
   </div>
 
 </main>
+<div id="mbg">
+  <div id="mbox">
+    <div id="mhead"><b id="mtitle"></b><button onclick="closeModal()" title="Закрыть (Esc)">✕</button></div>
+    <div id="mbody"></div>
+  </div>
+</div>
 <div id="flash"></div>
 
+<script>
+(function(){var mq=matchMedia('(prefers-color-scheme:dark)');
+function setTc(){var m=document.querySelector('meta[name=theme-color]');if(m)m.content=mq.matches?'#14161a':'#2f5d8a';}
+setTc();if(mq.addEventListener)mq.addEventListener('change',setTc);})();
+</script>
 <script>
 "use strict";
 const TABS=[["meas","Измерение"],["hist","История"],["log","Журнал"],["nn","Модель"],["al","Будильники"],["meds","Лекарства"],["cfg","Настройки"]];
@@ -370,6 +314,7 @@ let S=null, act="meas", editingId=null, predMap={};
 let filter={from:"",to:"",sysMin:"",diaMin:"",pulseMin:"",onlyMeds:false};
 
 const $=i=>document.getElementById(i);
+const cssv=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 async function apiPost(p,b){const r=await fetch(p,{method:"POST",headers:{"Content-Type":"application/json;charset=utf-8"},body:JSON.stringify(b||{})});return r.json();}
 function flash(t,ok=true,ms=2500){const f=$("flash");f.textContent=t;f.style.display="block";f.style.background=ok?"#2e7d32":"#c62828";clearTimeout(f._t);f._t=setTimeout(()=>f.style.display="none",ms);}
@@ -494,16 +439,14 @@ async function importAll(){
   r.readAsText(f,"utf-8");
 }
 
-/* ---------- измерение ---------- */
+/* ---------- модальные окна (все формы ввода — по образцу «замер», без перегруза страницы) ---------- */
+function openModal(title,html){$("mtitle").textContent=title;$("mbody").innerHTML=html;$("mbg").classList.add("on");}
+function closeModal(){$("mbg").classList.remove("on");$("mbody").innerHTML="";$("mbody").onkeydown=null;}
+$("mbg").addEventListener("click",e=>{if(e.target===e.currentTarget)closeModal();});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("mbg").classList.contains("on"))closeModal();});
+const enterSave=fn=>e=>{if(e.key==="Enter"&&e.target.tagName!=="BUTTON"){e.preventDefault();fn();}};
+
 function renderMeas(){
-  const box=$("m-meds");
-  const prev=[...box.querySelectorAll("input:checked")].map(i=>i.value);
-  const meds=S.cfg.Meds||[];
-  box.innerHTML=meds.length
-    ?meds.map(m=>`<label class="med"><input type="checkbox" value="${esc(m)}"> ${esc(m)}</label>`).join("")
-    :'<span class="mut">Список лекарств пуст — вкладка «Лекарства».</span>';
-  [...box.querySelectorAll("input")].forEach(i=>i.checked=prev.includes(i.value));
-  if(!$("m-t").value)$("m-t").value=nowDT();
   const today=new Date().toDateString();
   document.querySelector("#today-t tbody").innerHTML=
     S.measurements.filter(m=>new Date(m.T).toDateString()===today).map(m=>
@@ -512,39 +455,51 @@ function renderMeas(){
       `<td><button onclick="editM('${m.Id}')">изм</button> <button onclick="delM('${m.Id}')">✕</button></td></tr>`
     ).join("")||'<tr><td colspan="6" class="mut">сегодня измерений нет</td></tr>';
 }
-function saveM(){
-	const timeValue = $("m-t").value; // Получаем строку вида "2026-08-25T06:00"
-	if(!timeValue) { flash("Укажите дату и время", false); return; }
-	const body={
-		// Отправляем чистую локальную строку "2026-08-25T06:00" напрямую.
-		// Без .toISOString(), чтобы браузер НЕ переводил её в UTC+0.
-		t: timeValue, 
-		sys:+$("m-sys").value,
-		dia:+$("m-dia").value,
-		pulse:+$("m-pulse").value,
-		note:$("m-note").value,
-		meds:[...document.querySelectorAll("#m-meds input:checked")].map(i=>i.value)
-	};
-	if(!body.sys||!body.dia){flash("Укажите систолическое и диастолическое",false);return;}
-	(editingId?apiPost("/api/measurement/update",{id:editingId,...body}):apiPost("/api/measurement",body))
-		.then(j=>{
-			if(j.ok){flash("Сохранено");cancelEdit();document.querySelectorAll("#m-meds input").forEach(i=>i.checked=false);$("m-note").value="";loadState();}
-			else flash(j.err||"Ошибка",false);
-	});
+function measFormHtml(m){
+  const meds=S.cfg.Meds||[];
+  return `<div class="grid">
+    <label>Дата/время <input type="datetime-local" id="m-t" value="${m?dtLocal(m.T):nowDT()}"></label>
+    <label>Сист. <input type="number" id="m-sys" style="width:62px" value="${m!=null?m.Sys:""}"></label>
+    <label>Диаст. <input type="number" id="m-dia" style="width:62px" value="${m!=null?m.Dia:""}"></label>
+    <label>Пульс <input type="number" id="m-pulse" style="width:62px" value="${m!=null?m.Pulse:""}"></label>
+    <label>Примечание <input id="m-note" style="width:180px" placeholder="по желанию" value="${m?esc(m.Note||""):""}"></label>
+  </div>
+  <div style="margin-top:6px" id="m-meds">${meds.length
+    ?meds.map(x=>`<label class="med"><input type="checkbox" value="${esc(x)}"${m&&(m.Meds||[]).includes(x)?" checked":""}> ${esc(x)}</label>`).join("")
+    :'<span class="mut">Список лекарств пуст — вкладка «Лекарства».</span>'}</div>
+  <div style="margin-top:10px" class="grid">
+    <button class="primary" onclick="saveM()">${editingId?"Обновить запись":"Сохранить (Enter)"}</button>
+    ${editingId?'<button onclick="cancelEdit()">Отменить правку</button>':''}
+    ${editingId&&m?`<span class="mut">Правка: ${fdt(m.T)} ${fhm(m.T)}</span>`:""}
+  </div>`;
 }
-
+function openM(){
+  editingId=null;
+  openModal("Новое измерение",measFormHtml(null));
+  $("mbody").onkeydown=enterSave(saveM);
+  $("m-sys").focus();
+}
+function saveM(){
+  // Отправляем чистую локальную строку "2026-08-25T06:00" напрямую.
+  // Без .toISOString(), чтобы браузер НЕ переводил её в UTC+0.
+  const timeValue=$("m-t").value;
+  if(!timeValue){flash("Укажите дату и время",false);return;}
+  const body={t:timeValue,sys:+$("m-sys").value,dia:+$("m-dia").value,pulse:+$("m-pulse").value,
+    note:$("m-note").value,meds:[...document.querySelectorAll("#m-meds input:checked")].map(i=>i.value)};
+  if(!body.sys||!body.dia){flash("Укажите систолическое и диастолическое",false);return;}
+  (editingId?apiPost("/api/measurement/update",{id:editingId,...body}):apiPost("/api/measurement",body))
+    .then(j=>{
+      if(j.ok){flash("Сохранено");cancelEdit();loadState();}
+      else flash(j.err||"Ошибка",false);
+    });
+}
 function editM(id){
   const m=S.measurements.find(x=>x.Id===id);if(!m)return;
   editingId=id;
-  $("m-t").value=dtLocal(m.T);
-  $("m-sys").value=m.Sys;$("m-dia").value=m.Dia;$("m-pulse").value=m.Pulse;$("m-note").value=m.Note||"";
-  switchTab("meas");
-  [...document.querySelectorAll("#m-meds input")].forEach(i=>i.checked=(m.Meds||[]).includes(i.value));
-  $("m-save").textContent="Обновить запись";
-  $("m-cancel").style.display="";
-  $("m-ed").textContent="Правка: "+fdt(m.T)+" "+fhm(m.T);
+  openModal("Правка измерения — "+fdt(m.T)+" "+fhm(m.T),measFormHtml(m));
+  $("mbody").onkeydown=enterSave(saveM);
 }
-function cancelEdit(){editingId=null;$("m-save").textContent="Сохранить";$("m-cancel").style.display="none";$("m-ed").textContent="";}
+function cancelEdit(){editingId=null;closeModal();}
 function delM(id){if(!confirm("Удалить запись?"))return;apiPost("/api/measurement/delete",{id}).then(()=>{flash("Удалено");loadState();});}
 
 /* ---------- история / фильтры / экспорт ---------- */
@@ -587,7 +542,7 @@ function drawBp(l){
   const c=$("bp-cv"),x=c.getContext("2d");
   x.clearRect(0,0,c.width,c.height);
   $("g-hint").textContent="";
-  if(l.length<2){x.fillStyle="#999";x.font="12px Tahoma";x.fillText("Мало точек для графика — расширьте фильтр",10,24);return;}
+  if(l.length<2){x.fillStyle=cssv("--mut");x.font="12px Tahoma";x.fillText("Мало точек для графика — расширьте фильтр",10,24);return;}
   const L=44,R=c.width-10,T=14,B=c.height-26;
   const t0=new Date(l[0].T).getTime(),t1=new Date(l[l.length-1].T).getTime()||t0+1;
   const span=Math.max(1,t1-t0);
@@ -595,22 +550,22 @@ function drawBp(l){
   lo=Math.floor((lo-5)/10)*10;hi=Math.ceil((hi+5)/10)*10;
   const X=t=>L+(new Date(t).getTime()-t0)/span*(R-L);
   const Y=v=>B-(v-lo)/(hi-lo)*(B-T);
-  x.strokeStyle="#eee";x.fillStyle="#777";x.font="10px Tahoma";x.lineWidth=1;
+  x.strokeStyle=cssv("--grid");x.fillStyle=cssv("--mut");x.font="10px Tahoma";x.lineWidth=1;
   for(let v=lo;v<=hi;v+=20){
     x.beginPath();x.moveTo(L,Y(v));x.lineTo(R,Y(v));x.stroke();
     x.fillText(String(v),8,Y(v)+3);
   }
   const norm=S.cfg.NormSys;
-  if(norm>=lo&&norm<=hi){x.strokeStyle="#e57373";x.setLineDash([4,3]);x.beginPath();x.moveTo(L,Y(norm));x.lineTo(R,Y(norm));x.stroke();x.setLineDash([]);}
+  if(norm>=lo&&norm<=hi){x.strokeStyle=cssv("--warn-bd");x.setLineDash([4,3]);x.beginPath();x.moveTo(L,Y(norm));x.lineTo(R,Y(norm));x.stroke();x.setLineDash([]);}
   // подписи дат по оси X
-  x.fillStyle="#999";
+  x.fillStyle=cssv("--mut");
   const nlab=Math.min(6,l.length);
   for(let i=0;i<nlab;i++){
     const m=l[Math.round(i*(l.length-1)/(nlab-1||1))];
     const px=X(m.T);
     x.fillText(fdt(m.T)+" "+fhm(m.T),Math.min(px-24,R-58),c.height-8);
   }
-  const series=[[ "Sys","#c0392b","систолическое" ],[ "Dia","#2f5d8a","диастолическое" ],[ "Pulse","#2e7d32","пульс" ]];
+  const series=[[ "Sys",cssv("--s-sys"),"систолическое" ],[ "Dia",cssv("--s-dia"),"диастолическое" ],[ "Pulse",cssv("--s-pulse"),"пульс" ]];
   for(const [key,col,name] of series){
     x.strokeStyle=col;x.lineWidth=1.6;x.beginPath();
     let first=true;
@@ -627,7 +582,7 @@ function drawBp(l){
   let lx=L+6;
   x.font="11px Tahoma";
   for(const [key,col,name] of series){
-    x.fillStyle=col;x.fillRect(lx,T+2,10,3);x.fillStyle="#444";x.fillText(name,lx+14,T+7);
+    x.fillStyle=col;x.fillRect(lx,T+2,10,3);x.fillStyle=cssv("--legend");x.fillText(name,lx+14,T+7);
     lx+=x.measureText(name).width+34;
   }
   $("g-hint").textContent="красным пунктиром — норма сис "+norm;
@@ -647,16 +602,6 @@ async function doExport(kind){
 
 /* ---------- журнал: эмоции / шум / сон ---------- */
 function renderLog(){
-  const es=$("e-v");
-  if(!es.options.length){for(let v=-10;v<=10;v++)es.add(new Option((v>0?"+":"")+v+" — "+emoLabel(v),v));es.value="0";}
-  const qt=$("s-q");
-  if(!qt.options.length){for(let v=0;v<=10;v++)qt.add(new Option(String(v),v));qt.value="5";}
-  if(!$("s-h").value)$("s-h").value="7.5";
-  if(!$("e-t").value)$("e-t").value=nowDT();
-  if(!$("n-t").value)$("n-t").value=nowDT();
-  if(!$("s-t").value)$("s-t").value=nowDT();
-  $("n-type").innerHTML=(S.cfg.Noises||[]).map(t=>`<option>${esc(t)}</option>`).join("")+'<option value="__other">Другое…</option>';
-  $("n-type").value="тихо / ничего"; if(!$("n-type").value)$("n-type").selectedIndex=0;
   fillList("emo-t",S.emotions.map(e=>
     `<tr><td>${fdt(e.T)} ${fhm(e.T)}</td><td>${(e.Val>0?"+":"")+e.Val} — ${esc(emoLabel(e.Val))}</td><td>${esc(e.Note||"")}</td>`+
     `<td><button onclick="delJ('${e.Id}')">✕</button></td></tr>`));
@@ -667,22 +612,52 @@ function renderLog(){
     `<tr><td>${fdt(e.T)}</td><td>${e.Hours}</td><td>${e.Quality}</td><td>${esc(e.Note||"")}</td>`+
     `<td><button onclick="delJ('${e.Id}')">✕</button></td></tr>`));
 }
+function emoOpts(v){let h="";for(let x=-10;x<=10;x++)h+=`<option value="${x}"${x===v?" selected":""}>${(x>0?"+":"")+x} — ${emoLabel(x)}</option>`;return h;}
+function sleepQOpts(v){let h="";for(let x=0;x<=10;x++)h+=`<option${x===v?" selected":""}>${x}</option>`;return h;}
+function openEmo(){
+  openModal("Эмоция",`<div class="grid">
+    <label>Время <input type="datetime-local" id="e-t" value="${nowDT()}"></label>
+    <label>Значение <select id="e-v">${emoOpts(0)}</select></label>
+    <label>Прим. <input id="e-note" style="width:160px"></label>
+  </div><div class="grid" style="margin-top:8px"><button class="primary" onclick="addEmo()">Сохранить (Enter)</button></div>`);
+  $("mbody").onkeydown=enterSave(addEmo);
+}
+function openNoise(){
+  const types=(S.cfg.Noises||[]).map(t=>`<option>${esc(t)}</option>`).join("")+'<option value="__other">Другое…</option>';
+  openModal("Шум / событие",`<div class="grid">
+    <label>Время <input type="datetime-local" id="n-t" value="${nowDT()}"></label>
+    <label>Тип <select id="n-type" onchange="$('n-custom').style.display=this.value==='__other'?'':'none'">${types}</select></label>
+    <input id="n-custom" style="width:160px;display:none" placeholder="если «Другое…»">
+    <label>Прим. <input id="n-note" style="width:140px"></label>
+  </div><div class="grid" style="margin-top:8px"><button class="primary" onclick="addNoise()">Сохранить (Enter)</button></div>`);
+  const sel=$("n-type");sel.value="тихо / ничего";if(!sel.value)sel.selectedIndex=0;
+  $("mbody").onkeydown=enterSave(addNoise);
+}
+function openSleep(){
+  openModal("Сон",`<div class="grid">
+    <label>Дата <input type="datetime-local" id="s-t" value="${nowDT()}"></label>
+    <label>Часы <input type="number" id="s-h" step="0.5" min="0" max="24" style="width:64px" value="7.5"></label>
+    <label>Качество (0–10) <select id="s-q">${sleepQOpts(5)}</select></label>
+    <label>Прим. <input id="s-note" style="width:140px"></label>
+  </div><div class="grid" style="margin-top:8px"><button class="primary" onclick="addSleep()">Сохранить (Enter)</button></div>`);
+  $("mbody").onkeydown=enterSave(addSleep);
+}
 function fillList(id,rows){document.querySelector("#"+id+" tbody").innerHTML=rows.join("")||'<tr><td colspan="5" class="mut">пусто</td></tr>';}
 function addEmo(){apiPost("/api/emotion",{t:$("e-t").value,val:+$("e-v").value,note:$("e-note").value})
-  .then(j=>{flash(j.ok?"Сохранено":(j.err||"Ошибка"),!!j.ok);loadState();});}
+  .then(j=>{flash(j.ok?"Сохранено":(j.err||"Ошибка"),!!j.ok);if(j.ok)closeModal();loadState();});}
 function addNoise(){
   const sel=$("n-type");
   let type=sel.value,add="";
   if(type==="__other"){type=$("n-custom").value.trim();add=type;
     if(!type){flash("Введите тип шума",false);return;}}
   apiPost("/api/noise",{t:$("n-t").value,type:type,addType:add,note:$("n-note").value})
-    .then(j=>{flash(j.ok?"Сохранено":(j.err||"Ошибка"),!!j.ok);if(add)$("n-custom").value="";loadState();});
+    .then(j=>{flash(j.ok?"Сохранено":(j.err||"Ошибка"),!!j.ok);if(j.ok)closeModal();loadState();});
 }
 function addSleep(){
   const h=$("s-h").value===""?7.5:+$("s-h").value;// не задано -> нейтральные 7.5 ч
   if(!(h>=0&&h<=24)){flash("Часы сна: 0–24",false);return;}
   apiPost("/api/sleep",{t:$("s-t").value,h:h,q:+$("s-q").value,note:$("s-note").value})
-    .then(j=>{flash(j.ok?"Сохранено":(j.err||"Ошибка"),!!j.ok);loadState();});
+    .then(j=>{flash(j.ok?"Сохранено":(j.err||"Ошибка"),!!j.ok);if(j.ok)closeModal();loadState();});
 }
 function delJ(id){if(!confirm("Удалить запись?"))return;apiPost("/api/journal/delete",{id}).then(()=>{flash("Удалено");loadState();});}
 function importSleep(){
@@ -718,17 +693,17 @@ async function renderNn(){
 function drawLoss(){
   const c=$("loss-cv"),x=c.getContext("2d"),L=(S.nn&&S.nn.loss)||[];
   x.clearRect(0,0,c.width,c.height);
-  if(L.length<2){x.fillStyle="#999";x.font="12px Tahoma";x.fillText("Потери появятся после обучения (кнопка «Обучить»)",10,24);return;}
+  if(L.length<2){x.fillStyle=cssv("--mut");x.font="12px Tahoma";x.fillText("Потери появятся после обучения (кнопка «Обучить»)",10,24);return;}
   let mn=Math.min.apply(null,L.map(p=>p.L)),mx=Math.max.apply(null,L.map(p=>p.L));
   if(mx-mn<1e-9)mx=mn+1e-9;
-  x.strokeStyle="#2f5d8a";x.lineWidth=1.5;x.beginPath();
+  x.strokeStyle=cssv("--accent");x.lineWidth=1.5;x.beginPath();
   L.forEach((p,i)=>{
     const px=12+i*(c.width-24)/(L.length-1);
     const py=c.height-16-((p.L-mn)/(mx-mn))*(c.height-40);
     i?x.lineTo(px,py):x.moveTo(px,py);
   });
   x.stroke();
-  x.fillStyle="#777";x.font="11px Tahoma";
+  x.fillStyle=cssv("--mut");x.font="11px Tahoma";
   x.fillText(mx.toFixed(4),6,14);
   x.fillText(mn.toFixed(4),6,c.height-22);
   x.fillText(L[0].T,6,c.height-8);
@@ -820,7 +795,6 @@ function schedCell(a,i){
 function renderAlarms(){
   $("a-file").value=S.cfg.AlarmFile||"";
   $("a-ahead").value=S.cfg.AlarmAheadMin;
-  if(!$("a-days").innerHTML)$("a-days").innerHTML=DAYS.map((d,k)=>`<label style="margin:0 3px 0 0"><input type="checkbox" class="a-day" value="${k+1}"> ${d}</label>`).join("");
   document.querySelector("#al-t tbody").innerHTML=(S.cfg.Alarms||[]).map((a,i)=>
     `<tr><td><input type="time" value="${esc(a.Time)}" style="width:96px" onchange="setAlTime(${i},this.value)"></td>`+
     `<td><input value="${esc(a.Label||"")}" style="width:130px" placeholder="без подписи" onchange="setAlLabel(${i},this.value)"></td><td>${schedCell(a,i)}</td>`+
@@ -845,6 +819,20 @@ function alModeUI(){
 function setAlMode(i,v){const a=S.cfg.Alarms[i];a.Mode=v;if(v==="days"&&!a.Days)a.Days=[];apiPost("/api/config",S.cfg).then(loadState);}
 function togDay(i,d,on){const a=S.cfg.Alarms[i];a.Days=a.Days||[];const j=a.Days.indexOf(d);if(on&&j<0)a.Days.push(d);if(!on&&j>=0)a.Days.splice(j,1);apiPost("/api/config",S.cfg).then(loadState);}
 function setEvery(i,v){S.cfg.Alarms[i].EveryN=Math.max(1,+v||1);apiPost("/api/config",S.cfg).then(loadState);}
+function openAlarm(){
+  openModal("Новый будильник",`<div class="grid">
+    <label>Время <input type="time" id="a-time" style="width:96px"></label>
+    <label>Подпись <input id="a-label" style="width:140px" placeholder="напр. «утро»"></label>
+    <label>Расписание <select id="a-mode" onchange="alModeUI()">
+      <option value="daily">ежедневно</option>
+      <option value="days">по дням недели</option>
+      <option value="everyN">каждые N дней</option>
+    </select></label>
+    <span id="a-days" style="display:none">`+DAYS.map((d,k)=>`<label style="margin:0 3px 0 0"><input type="checkbox" class="a-day" value="${k+1}"> ${d}</label>`).join("")+`</span>
+    <label id="a-every-wrap" style="display:none">каждые <input id="a-every" type="number" min="1" max="30" value="2" style="width:46px"> дн.</label>
+  </div><div class="grid" style="margin-top:8px"><button class="primary" onclick="addAlarm()">Сохранить (Enter)</button></div>`);
+  $("mbody").onkeydown=enterSave(addAlarm);
+}
 function addAlarm(){
   const t=$("a-time").value;
   if(!t){flash("Укажите время",false);return;}
@@ -856,7 +844,7 @@ function addAlarm(){
   }
   if(mode==="everyN")al.EveryN=Math.max(1,+$("a-every").value||1);
   S.cfg.Alarms.push(al);
-  apiPost("/api/config",S.cfg).then(j=>{flash(j.ok?"Будильник добавлен":(j.err||"Ошибка"),!!j.ok);$("a-label").value="";loadState();});
+  apiPost("/api/config",S.cfg).then(j=>{flash(j.ok?"Будильник добавлен":(j.err||"Ошибка"),!!j.ok);if(j.ok)closeModal();loadState();});
 }
 function delAl(i){
   if(!confirm("Удалить будильник?"))return;
@@ -903,11 +891,20 @@ function renderDb(){
     `<td><button onclick="dbDel(${i})" title="убрать из справочника">✕</button></td></tr>`).join("");
 }
 function dbSet(i,f,v){const r=dbRows()[i];if(!r)return;if(!(+v>0))return loadState();S.medPkDb[r[0]][f]=+v;postDb();}
+function openDb(){
+  openModal("Добавить в справочник ФК",`<div class="grid">
+    <input id="db-name" style="width:180px" placeholder="МНН или бренд">
+    <input id="db-half" type="number" step="0.5" min="0.25" style="width:70px" placeholder="T½ ч">
+    <input id="db-dur" type="number" step="1" min="0.5" style="width:90px" placeholder="действие ч">
+    <button class="primary" onclick="dbAdd()">Сохранить (Enter)</button>
+  </div>`);
+  $("mbody").onkeydown=enterSave(dbAdd);
+}
 function dbAdd(){
   const n=normMd($("db-name").value),h=+$("db-half").value,d=+$("db-dur").value;
   if(!n){flash("Введите название",false);return;}
   if(!(h>0)||!(d>0)){flash("Укажите T½ и длительность действия",false);return;}
-  S.medPkDb[n]=[h,d];$("db-name").value=$("db-half").value=$("db-dur").value="";postDb();
+  S.medPkDb[n]=[h,d];closeModal();postDb();
 }
 function dbDel(i){const r=dbRows()[i];if(!r||!confirm("Удалить «"+r[0]+"» из справочника?"))return;delete S.medPkDb[r[0]];postDb();}
 async function postDb(){const j=await apiPost("/api/medpk",{entries:S.medPkDb});flash(j.ok?("Справочник сохранён, записей: "+j.count):("Ошибка: "+(j.err||"?")),!!j.ok,5000);loadState();}
@@ -921,35 +918,124 @@ function setMdPk(i,field,v){
   S.cfg.MedKt[name][field]=val;
   apiPost("/api/config",S.cfg).then(j=>{flash(j.ok?"PK сохранено":(j.err||"Ошибка"),!!j.ok);loadState();});
 }
+function openMd(){
+  openModal("Добавить лекарство",`<div class="grid">
+    <input id="md-name" style="width:220px" placeholder="название лекарства">
+    <button class="primary" onclick="addMd()">Сохранить (Enter)</button>
+  </div>`);
+  $("md-name").focus();$("mbody").onkeydown=enterSave(addMd);
+}
 function addMd(){
   const v=$("md-name").value.trim();
   if(!v){flash("Введите название",false);return;}
   if((S.cfg.Meds||[]).some(x=>normMd(x)===normMd(v))){flash("Уже в списке (реестр нечувствителен к регистру)",false);return;}
-  S.cfg.Meds.push(v);$("md-name").value="";
-  apiPost("/api/config",S.cfg).then(j=>{flash(j.ok?"Добавлено":(j.err||"Ошибка"),!!j.ok);loadState();});
+  S.cfg.Meds.push(v);
+  apiPost("/api/config",S.cfg).then(j=>{flash(j.ok?"Добавлено":(j.err||"Ошибка"),!!j.ok);if(j.ok)closeModal();loadState();});
 }
 function delMd(i){S.cfg.Meds.splice(i,1);apiPost("/api/config",S.cfg).then(loadState);}
 
 /* ---------- настройки ---------- */
 function fillCfg(){
   const c=S.cfg;
-  $("c-port").value=c.Port;$("c-lat").value=c.Lat;$("c-lon").value=c.Lon;$("c-poll").value=c.PollMin;
-  $("c-alarm").value=c.AlarmFile||"";$("c-ahead").value=c.AlarmAheadMin;
-  $("c-norms").value=c.NormSys;$("c-normd").value=c.NormDia;$("c-cd").value=c.PopupCooldownMin;
-  $("c-dob").value=c.Dob||"";$("c-sex").value=c.Sex||"";
+  $("sum-gen").textContent=`порт ${c.Port} · широта ${c.Lat}, долгота ${c.Lon}, погоду каждые ${c.PollMin} мин · звук ${c.AlarmFile||"alarm.mp3"}, напоминать за ${c.AlarmAheadMin} мин`;
+  $("sum-user").textContent=(c.Dob?("дата рождения "+c.Dob):"дата рождения не указана")+" · "+(c.Sex==="m"?"мужской":c.Sex==="f"?"женский":"пол не указан");
+  $("sum-norm").textContent=`норма ≤ ${c.NormSys}/${c.NormDia} · пауза popup ${c.PopupCooldownMin} мин`;
+  $("sum-ha").textContent=c.Ha&&c.Ha.Url?("URL "+c.Ha.Url):"не подключён";
+  $("sum-nn").textContent=`lr ${c.Nn.Lr} · слои ${c.Nn.Hidden}/${c.Nn.Hidden2} · эпох ${c.Nn.Epochs}`;
   $("c-auto").checked=!!S.autostart;
-  $("c-ha-url").value=(c.Ha&&c.Ha.Url)||"";
-  $("c-ha-tok").value=(c.Ha&&c.Ha.Token)||"";
-  const s=(c.Ha&&c.Ha.Sensors)||{};
-  $("c-ha-s0").value=s.pressure||"";$("c-ha-s1").value=s.temp||"";
-  $("c-ha-s2").value=s.humidity||"";$("c-ha-s3").value=s.kp||"";
-  $("c-lr").value=c.Nn.Lr;$("c-hid").value=c.Nn.Hidden;$("c-hid2").value=c.Nn.Hidden2;$("c-ep").value=c.Nn.Epochs;
   const miss=(S.measurements||[]).filter(m=>m.PressMm==null||m.TempC==null||m.Hum==null||m.Kp==null).length;
   $("c-wxb").textContent=miss?("Заполнить погоду ("+miss+")"):"Погода заполнена ✓";
-  $("c-sync-on").checked=!!c.SyncOn;$("c-sync-tok").value=c.SyncToken||"";$("c-sync-int").value=c.SyncIntervalMin||15;
-  $("c-sync-url").value=c.SyncUrl||"https://bp.xor.world";$("c-sync-cfg").value=c.SyncCfgMaster||"";
+  $("sum-sync").textContent=c.SyncOn
+    ?("включена, каждые "+(c.SyncIntervalMin||15)+" мин · "+(c.SyncCfgMaster==="desktop"?"конфиг: десктоп главный":c.SyncCfgMaster==="server"?"конфиг: сервер главный":"конфиг не синхр.")+(c.SyncToken?" · токен задан":" · токен не задан"))
+    :"выключена";
   syncStatus();
 }
+function postCfg(){apiPost("/api/config",S.cfg).then(j=>{
+  if(j.ok){closeModal();
+    if(j.restartRequired)flash("Сохранено. Порт изменён — перезапустите приложение (Выход в трее и запуск снова)",false,8000);
+    else flash("Настройки сохранены");
+    loadState();}
+  else flash(j.err||"Ошибка",false);});}
+function openCfgGen(){
+  const c=S.cfg;
+  openModal("Общее",`<div class="grid">
+    <label>Порт <input type="number" id="c-port" style="width:70px" value="${c.Port}"></label>
+    <label>Широта <input type="number" step="0.0001" id="c-lat" style="width:92px" value="${c.Lat}"></label>
+    <label>Долгота <input type="number" step="0.0001" id="c-lon" style="width:92px" value="${c.Lon}"></label>
+    <label>Опрос погоды, мин <input type="number" id="c-poll" style="width:60px" value="${c.PollMin}"></label>
+    <label>mp3-файл (рядом с программой) <input id="c-alarm" style="width:140px" value="${esc(c.AlarmFile||"")}"></label>
+    <label>Напоминать, мин до <input type="number" id="c-ahead" style="width:60px" value="${c.AlarmAheadMin}"></label>
+  </div><p class="mut">После смены порта нужно перезапустить приложение (Выход в трее и запуск снова).</p>
+  <div class="grid" style="margin-top:10px"><button class="primary" onclick="saveCfgGen()">Сохранить</button></div>`);
+}
+function saveCfgGen(){const c=S.cfg;c.Port=+$("c-port").value||c.Port;c.Lat=+$("c-lat").value;c.Lon=+$("c-lon").value;c.PollMin=+$("c-poll").value;
+  c.AlarmFile=$("c-alarm").value.trim();c.AlarmAheadMin=+$("c-ahead").value||0;postCfg();}
+function openCfgUser(){
+  const c=S.cfg;
+  openModal("Пользователь",`<div class="grid">
+    <label>Дата рождения <input type="date" id="c-dob" style="width:140px" value="${c.Dob||""}"></label>
+    <label>Пол <select id="c-sex" style="width:120px"><option value="">не указан</option><option value="m"${c.Sex==="m"?" selected":""}>мужской</option><option value="f"${c.Sex==="f"?" selected":""}>женский</option></select></label>
+  </div><p class="mut">Модель использует их как признаки «возраст» (на момент каждого измерения) и «пол»; после изменения модель переобучается автоматически.</p>
+  <div class="grid"><button class="primary" onclick="saveCfgUser()">Сохранить</button></div>`);
+}
+function saveCfgUser(){const c=S.cfg;c.Dob=$("c-dob").value;c.Sex=$("c-sex").value;postCfg();}
+function openCfgNorm(){
+  const c=S.cfg;
+  openModal("Норма и оповещение",`<div class="grid">
+    <label>Норма сис ≤ <input type="number" id="c-norms" style="width:60px" value="${c.NormSys}"></label>
+    <label>Норма диаст ≤ <input type="number" id="c-normd" style="width:60px" value="${c.NormDia}"></label>
+    <label>Пауза между popup, мин <input type="number" id="c-cd" style="width:60px" value="${c.PopupCooldownMin}"></label>
+  </div><div class="grid" style="margin-top:10px"><button class="primary" onclick="saveCfgNorm()">Сохранить</button></div>`);
+}
+function saveCfgNorm(){const c=S.cfg;c.NormSys=+$("c-norms").value;c.NormDia=+$("c-normd").value;c.PopupCooldownMin=+$("c-cd").value;postCfg();}
+function openCfgHa(){
+  const c=S.cfg,s=(c.Ha&&c.Ha.Sensors)||{};
+  openModal("HomeAssistant",`<div class="grid">
+    <label>URL <input id="c-ha-url" style="width:220px" placeholder="http://home:8123" value="${esc((c.Ha&&c.Ha.Url)||"")}"></label>
+    <label>Токен <input id="c-ha-tok" style="width:220px" title="в целях безопасности токен маскируется; реальное значение сохраняется, если поле не менять" value="${esc((c.Ha&&c.Ha.Token)||"")}"></label>
+  </div><div class="grid" style="margin-top:6px">
+    <label>датчик давления <input id="c-ha-s0" style="width:180px" value="${esc(s.pressure||"")}"></label>
+    <label>температура <input id="c-ha-s1" style="width:180px" value="${esc(s.temp||"")}"></label>
+    <label>влажность <input id="c-ha-s2" style="width:180px" value="${esc(s.humidity||"")}"></label>
+    <label>Kp <input id="c-ha-s3" style="width:180px" value="${esc(s.kp||"")}"></label>
+  </div><div class="grid" style="margin-top:10px"><button class="primary" onclick="saveCfgHa()">Сохранить</button></div>`);
+}
+function saveCfgHa(){const c=S.cfg;
+  c.Ha=c.Ha||{Url:"",Token:"",Sensors:{pressure:"",temp:"",humidity:"",kp:""}};
+  c.Ha.Url=$("c-ha-url").value.trim();c.Ha.Token=$("c-ha-tok").value.trim();
+  c.Ha.Sensors={pressure:$("c-ha-s0").value.trim(),temp:$("c-ha-s1").value.trim(),humidity:$("c-ha-s2").value.trim(),kp:$("c-ha-s3").value.trim()};
+  postCfg();}
+function openCfgNn(){
+  const c=S.cfg;
+  openModal("Нейросеть",`<div class="grid">
+    <label>обучающая ставка <input type="number" step="0.005" id="c-lr" style="width:80px" value="${c.Nn.Lr}"></label>
+    <label>скрытых нейронов <input type="number" id="c-hid" style="width:60px" value="${c.Nn.Hidden}"></label>
+    <label>2-й слой <input type="number" id="c-hid2" style="width:60px" value="${c.Nn.Hidden2}"></label>
+    <label>эпох на запись <input type="number" id="c-ep" style="width:60px" value="${c.Nn.Epochs}"></label>
+  </div><p class="mut">Новый размер слоя применится после «Сбросить модель» (вкладка «Модель»).</p>
+  <div class="grid"><button class="primary" onclick="saveCfgNn()">Сохранить</button></div>`);
+}
+function saveCfgNn(){const c=S.cfg;
+  c.Nn=c.Nn||{Lr:0.05,Hidden:12,Hidden2:16,Epochs:30};
+  c.Nn.Lr=+$("c-lr").value;c.Nn.Hidden=+$("c-hid").value;c.Nn.Hidden2=+$("c-hid2").value||16;c.Nn.Epochs=+$("c-ep").value;postCfg();}
+function openCfgSync(){
+  const c=S.cfg;
+  openModal("Синхронизация с bp.xor.world",`<div class="grid">
+    <label><input type="checkbox" id="c-sync-on" ${c.SyncOn?"checked":""}> Синхронизация</label>
+    <label>Токен <input id="c-sync-tok" style="width:220px" placeholder="из веб-настроек «Устройства»" value="${esc(c.SyncToken||"")}"></label>
+    <label>Интервал, мин <input type="number" id="c-sync-int" style="width:60px" value="${c.SyncIntervalMin||15}"></label>
+  </div><div class="grid" style="margin-top:6px">
+    <label>URL <input id="c-sync-url" style="width:220px" value="${esc(c.SyncUrl||"https://bp.xor.world")}"></label>
+    <label>Конфиг <select id="c-sync-cfg" style="width:170px">
+      <option value=""${!c.SyncCfgMaster?" selected":""}>не синхронизировать</option>
+      <option value="desktop"${c.SyncCfgMaster==="desktop"?" selected":""}>десктоп главный</option>
+      <option value="server"${c.SyncCfgMaster==="server"?" selected":""}>сервер главный</option>
+    </select></label>
+  </div><div class="grid" style="margin-top:10px"><button class="primary" onclick="saveCfgSync()">Сохранить</button></div>`);
+}
+function saveCfgSync(){const c=S.cfg;
+  c.SyncOn=$("c-sync-on").checked;c.SyncToken=$("c-sync-tok").value.trim();c.SyncIntervalMin=+$("c-sync-int").value||15;
+  c.SyncUrl=$("c-sync-url").value.trim()||"https://bp.xor.world";c.SyncCfgMaster=$("c-sync-cfg").value;postCfg();}
 function syncStatus(){
   fetch("/api/sync/status").then(r=>r.json()).then(j=>{
     const el=$("sync-state");if(!el)return;
@@ -967,55 +1053,8 @@ function toggleAuto(on){
     loadState();
   });
 }
-function saveCfg(){
-  const c=S.cfg;
-  c.Port=+$("c-port").value;c.Lat=+$("c-lat").value;c.Lon=+$("c-lon").value;c.PollMin=+$("c-poll").value;
-  c.AlarmFile=$("c-alarm").value.trim();c.AlarmAheadMin=+$("c-ahead").value||0;
-  c.NormSys=+$("c-norms").value;c.NormDia=+$("c-normd").value;c.PopupCooldownMin=+$("c-cd").value;
-  c.Dob=$("c-dob").value;c.Sex=$("c-sex").value;
-  c.Ha=c.Ha||{Url:"",Token:"",Sensors:{pressure:"",temp:"",humidity:"",kp:""}};
-  c.Ha.Url=$("c-ha-url").value.trim();c.Ha.Token=$("c-ha-tok").value.trim();
-  c.Ha.Sensors={pressure:$("c-ha-s0").value.trim(),temp:$("c-ha-s1").value.trim(),
-    humidity:$("c-ha-s2").value.trim(),kp:$("c-ha-s3").value.trim()};
-  c.Nn=c.Nn||{Lr:0.05,Hidden:12,Hidden2:16,Epochs:30};
-  c.Nn.Lr=+$("c-lr").value;c.Nn.Hidden=+$("c-hid").value;c.Nn.Hidden2=+$("c-hid2").value||16;c.Nn.Epochs=+$("c-ep").value;
-  c.SyncOn=$("c-sync-on").checked;c.SyncToken=$("c-sync-tok").value.trim();c.SyncIntervalMin=+$("c-sync-int").value||15;
-  c.SyncUrl=$("c-sync-url").value.trim()||"https://bp.xor.world";c.SyncCfgMaster=$("c-sync-cfg").value;
-  apiPost("/api/config",c).then(j=>{
-    if(!j.ok){$("cfg-msg").textContent="";flash(j.err||"Ошибка",false);return;}
-    if(j.restartRequired){
-      $("cfg-msg").textContent="⚠ Порт изменён — перезапустите приложение (Выход в трее и запуск снова).";
-      flash("Порт изменён — нужен перезапуск",false);
-    }else{
-      $("cfg-msg").textContent="Сохранено "+new Date().toTimeString().slice(0,5);
-      flash("Настройки сохранены");
-    }
-    loadState();
-  });
-}
-
 /* ---------- старт ---------- */
-//["m-sys","m-dia","m-pulse","m-note"].forEach(id=>$(id).addEventListener("keydown",e=>{if(e.key==="Enter")saveM();}));
-document.addEventListener("DOMContentLoaded", () => {
-	// Список ID элементов строго в том порядке, в котором должен ходить фокус
-	const focusChain = ["m-t", "m-sys", "m-dia", "m-pulse", "m-save"];
-	focusChain.forEach((id,index)=>{
-		const el=document.getElementById(id);
-		if(!el)return;
-		el.addEventListener("keydown",(e)=>{
-			if(e.key==="Enter"){
-				const nextId=focusChain[index+1];
-				if(nextId){
-					e.preventDefault();
-					const nextEl=document.getElementById(nextId);
-					nextEl.focus();
-					if(nextEl.select)nextEl.select();
-				}
-			}
-		});
-	});
-	loadState();
-});
+document.addEventListener("DOMContentLoaded",()=>{loadState();});
 
 </script>
 </body>
