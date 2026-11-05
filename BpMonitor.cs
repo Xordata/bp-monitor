@@ -72,6 +72,11 @@ public class Config{
 	public string Dob="";// дата рождения пользователя yyyy-MM-dd (фича НН "возраст"); пусто = не указан
 	public string Sex="";// пол: "m"|"f" (фича НН "пол"); пусто = не указан
 	public int PopupCooldownMin=120;// пауза между popup
+	public bool SyncOn=false;// синхронизация с bp.xor.world (Фаза 7)
+	public string SyncUrl="https://bp.xor.world";
+	public string SyncToken="";// персональный токен из веб-настроек «Устройства»; показывается там один раз
+	public int SyncIntervalMin=15;
+	public string SyncCfgMaster="";// конфиг: ""=не синхронизировать, "desktop"=десктоп главный, "server"=сервер главный
 	public HaCfg Ha=new HaCfg();
 	public NnCfg Nn=new NnCfg();
 	public List<AlarmDef> Alarms=new List<AlarmDef>{new AlarmDef{Time="08:00",Label="утро"},new AlarmDef{Time="20:00",Label="вечер"}};
@@ -487,7 +492,7 @@ static class App{
 	static void AppendNoise(NoiseEntry n2){ lock(Io){ try{ using(BinaryWriter w=OpenAppend()) WriteRec(w,RecNoi,NoiPayload(n2,PoolWriter(w))); } catch{} } }
 	static void AppendSleep(SleepEntry s2){ lock(Io){ try{ using(BinaryWriter w=OpenAppend()) WriteRec(w,RecSleep,SleepPayload(s2,PoolWriter(w))); } catch{} } }
 	static void AppendMedTake(MedTakeEntry mt){ lock(Io){ try{ using(BinaryWriter w=OpenAppend()) WriteRec(w,RecMedTake,MedTakePayload(mt,PoolWriter(w))); } catch{} } }
-	static void AppendGuidRec(byte type,string id){ Guid g; if(Guid.TryParse(id,out g)) AppendRec(type,RecPayload(w=>w.Write(g.ToByteArray()))); }
+	static void AppendGuidRec(byte type,string id){ Guid g; if(Guid.TryParse(id,out g)){ if(type==RecMeasDel||type==RecEmoDel||type==RecNoiDel||type==RecSleepDel||type==RecMedTakeDel) SyncLayer.MarkDead(g); AppendRec(type,RecPayload(w=>w.Write(g.ToByteArray()))); } }
 	static void AppendPopup(){ if(D.LastPopup!=null) AppendRec(RecPopup,RecPayload(w=>w.Write(D.LastPopup.Value.Ticks))); }
 	static bool SameId(string id,Guid g){ Guid g2; return Guid.TryParse(id,out g2)&&g2==g; }
 	static string GetPool(Dictionary<int,string> pool,int id){ string s3; return pool.TryGetValue(id,out s3)?s3:""; }
@@ -533,35 +538,35 @@ static class App{
 								EmotionV=emo,EmotionLabel=emo!=null?DataStore.EmotionLabel((int)emo.Value):"",
 								Wx=wxId==0xFFFF?"":GetPool(pool,wxId),Meds=meds,Noise=noise,Note=note});
 						}
-						else if(type==RecMeasDel){ Guid g=new Guid(p.ReadBytes(16)); D.M.RemoveAll(x=>SameId(x.Id,g)); }
+						else if(type==RecMeasDel){ Guid g=new Guid(p.ReadBytes(16)); SyncLayer.MarkDead(g); D.M.RemoveAll(x=>SameId(x.Id,g)); }
 						else if(type==RecEmo){
 							Guid g=new Guid(p.ReadBytes(16)); DateTime t=new DateTime(p.ReadInt64());
 							int val=p.ReadSByte(); string note=Encoding.UTF8.GetString(p.ReadBytes(p.ReadUInt16()));
 							D.E.RemoveAll(x=>SameId(x.Id,g));
 							D.E.Add(new EmotionEntry{Id=g.ToString("N"),T=t,Val=val,Note=note});
 						}
-						else if(type==RecEmoDel){ Guid g=new Guid(p.ReadBytes(16)); D.E.RemoveAll(x=>SameId(x.Id,g)); }
+						else if(type==RecEmoDel){ Guid g=new Guid(p.ReadBytes(16)); SyncLayer.MarkDead(g); D.E.RemoveAll(x=>SameId(x.Id,g)); }
 						else if(type==RecNoi){
 							Guid g=new Guid(p.ReadBytes(16)); DateTime t=new DateTime(p.ReadInt64());
 							string tp=GetPool(pool,p.ReadUInt16()); string note=Encoding.UTF8.GetString(p.ReadBytes(p.ReadUInt16()));
 							D.N.RemoveAll(x=>SameId(x.Id,g));
 							D.N.Add(new NoiseEntry{Id=g.ToString("N"),T=t,Type=tp,Note=note});
 						}
-						else if(type==RecNoiDel){ Guid g=new Guid(p.ReadBytes(16)); D.N.RemoveAll(x=>SameId(x.Id,g)); }
+						else if(type==RecNoiDel){ Guid g=new Guid(p.ReadBytes(16)); SyncLayer.MarkDead(g); D.N.RemoveAll(x=>SameId(x.Id,g)); }
 						else if(type==RecSleep){
 							Guid g=new Guid(p.ReadBytes(16)); DateTime t=new DateTime(p.ReadInt64());
 							float hours=p.ReadSingle(); int q=p.ReadByte(); string note=Encoding.UTF8.GetString(p.ReadBytes(p.ReadUInt16()));
 							D.S.RemoveAll(x=>SameId(x.Id,g));
 							D.S.Add(new SleepEntry{Id=g.ToString("N"),T=t,Hours=hours,Quality=q,Note=note});
 						}
-						else if(type==RecSleepDel){ Guid g=new Guid(p.ReadBytes(16)); D.S.RemoveAll(x=>SameId(x.Id,g)); }
+						else if(type==RecSleepDel){ Guid g=new Guid(p.ReadBytes(16)); SyncLayer.MarkDead(g); D.S.RemoveAll(x=>SameId(x.Id,g)); }
 						else if(type==RecMedTake){
 							Guid g=new Guid(p.ReadBytes(16)); DateTime t=new DateTime(p.ReadInt64());
 							string med=GetPool(pool,p.ReadUInt16());
 							D.MedTakes.RemoveAll(x=>SameId(x.Id,g));
 							D.MedTakes.Add(new MedTakeEntry{Id=g.ToString("N"),T=t,Med=med});
 						}
-						else if(type==RecMedTakeDel){ Guid g=new Guid(p.ReadBytes(16)); D.MedTakes.RemoveAll(x=>SameId(x.Id,g)); }
+						else if(type==RecMedTakeDel){ Guid g=new Guid(p.ReadBytes(16)); SyncLayer.MarkDead(g); D.MedTakes.RemoveAll(x=>SameId(x.Id,g)); }
 						else if(type==RecPopup) D.LastPopup=new DateTime(p.ReadInt64());
 						// неизвестный тип — пропущен (задел на будущее)
 					}
@@ -2007,6 +2012,9 @@ static class App{
 						ctx.Response.OutputStream.Close();
 						return;
 					}
+					case"/api/sync/status":
+						JsonResp(ctx.Response,SyncLayer.StatusJson());
+						return;
 					case"/api/version":
 						JsonResp(ctx.Response,new{version="2.0"});
 						return;
@@ -2139,6 +2147,10 @@ static class App{
 				case"/api/autostart":
 					SetAutostart((bool)jo["on"]);
 					SaveCfg();
+					JsonResp(ctx.Response,new{ok=true});
+					return;
+				case"/api/sync/now":
+					SyncLayer.RunAsync();
 					JsonResp(ctx.Response,new{ok=true});
 					return;
 				case"/api/alarm/test":
@@ -2495,9 +2507,333 @@ static class App{
 			try{ ImportAll(JObject.Parse("{\"app\":\"other\",\"ver\":1}")); throw new Exception("чужой файл должен отвергаться"); }
 			catch(Exception ex){ if(ex.Message=="чужой файл должен отвергаться") throw; }
 		});
+		check("Sync: EncodeDelta/ApplyDelta round-trip, echo, тумстоун",()=>{
+			string db=Path.Combine(ExeDir,"data","data.bin");
+			if(File.Exists(db)) File.Delete(db);
+			Cfg=new Config(); Cfg.Meds=new List<string>();
+			D=new DataStore(); D.Nn=NewNn(4,4,InDim());
+			DateTime t0=new DateTime(2026,11,1,9,0,0);
+			string id1=Guid.NewGuid().ToString("N"), id2=Guid.NewGuid().ToString("N");
+			Measurement m1=new Measurement{Id=id1,T=t0,Sys=120,Dia=80,Pulse=70,Note="раз"};
+			D.M.Add(m1); AppendMeasurement(m1);
+			EmotionEntry ee=new EmotionEntry{Id=id2,T=t0,Val=3,Note="ок"};
+			D.E.Add(ee); AppendEmotion(ee);
+			JArray recs=SyncLayer.EncodeDelta(5);
+			if(recs.Count!=2) throw new Exception("encode: "+recs.Count);
+			if((string)recs[0]["k"]!="meas"||(string)recs[1]["k"]!="emo") throw new Exception("encode: виды записей");
+			// «сервер»: пустое состояние -> применяем дельту в pull-форме
+			DataStore keep=D;
+			D=new DataStore(); D.Nn=NewNn(4,4,InDim());
+			JObject pull=new JObject{
+				["meas"]=new JArray(recs.Where(r=>(string)r["k"]=="meas")),
+				["emo"]=new JArray(recs.Where(r=>(string)r["k"]=="emo"))};
+			if(SyncLayer.ApplyDelta(pull)!=2||D.M.Count(x=>x.Id==id1)!=1||D.E.Count(x=>x.Id==id2)!=1) throw new Exception("дельта не применена");
+			if(SyncLayer.ApplyDelta(pull)!=0) throw new Exception("echo не подавлен");
+			JObject upd=new JObject{["meas"]=new JArray(new JObject{["Id"]=id1,["T"]=t0,["Sys"]=141,["Dia"]=80,["Pulse"]=70,["Note"]="раз"})};
+			if(SyncLayer.ApplyDelta(upd)!=1||D.M.First(x=>x.Id==id1).Sys!=141) throw new Exception("LWW-правка не сработала");
+			if(SyncLayer.ApplyDelta(new JObject{["measDel"]=new JArray(new JValue(id1))})!=1||D.M.Any(x=>x.Id==id1)) throw new Exception("тумстоун не применён");
+			if(SyncLayer.ApplyDelta(new JObject{["measDel"]=new JArray(new JValue(id1))})!=0) throw new Exception("echo тумстоуна не подавлен");
+			D=keep;
+		});
+		check("Sync: курсоры sync.json",()=>{
+			SyncLayer.C.pushedSeq=123; SyncLayer.C.pulledSeq=456; SyncLayer.C.serverGen=7;
+			SyncLayer.SaveCur();
+			SyncLayer.C=new SyncLayer.Cur();
+			SyncLayer.Load();
+			if(SyncLayer.C.pushedSeq!=123||SyncLayer.C.pulledSeq!=456||SyncLayer.C.serverGen!=7) throw new Exception("курсоры не персистятся");
+			SyncLayer.C=new SyncLayer.Cur();
+		});
+		check("Sync: pull-диапазоны не уходят в push",()=>{
+			string db=Path.Combine(ExeDir,"data","data.bin");
+			if(File.Exists(db)) File.Delete(db);
+			Cfg=new Config(); Cfg.Meds=new List<string>();
+			D=new DataStore(); D.Nn=NewNn(4,4,InDim());
+			SyncLayer.C=new SyncLayer.Cur();
+			DateTime t0=new DateTime(2026,11,2,9,0,0);
+			Measurement a=new Measurement{Id=Guid.NewGuid().ToString("N"),T=t0,Sys=111,Dia=70,Pulse=60,Note="local"};
+			D.M.Add(a); AppendMeasurement(a);
+			long p1=SyncLayer.LocalLen;
+			Measurement b=new Measurement{Id=Guid.NewGuid().ToString("N"),T=t0,Sys=222,Dia=80,Pulse=65,Note="pulled"};
+			D.M.Add(b); AppendMeasurement(b);
+			SyncLayer.AddPulledRange(p1,SyncLayer.LocalLen);
+			JArray arr=SyncLayer.EncodeDelta(5);
+			if(arr.Count!=1||(string)arr[0]["Id"]!=a.Id) throw new Exception("pull-диапазон ушёл в push: "+arr.Count);
+			SyncLayer.C.Pulled.Clear();
+			if(SyncLayer.EncodeDelta(5).Count!=2) throw new Exception("без диапазона должны уйти обе записи");
+			SyncLayer.C=new SyncLayer.Cur();
+		});
 		Thread.CurrentThread.CurrentCulture=savedCulture;
 		Console.WriteLine(failed==0?"SELFTEST OK":"SELFTEST FAILED: "+failed);
 		return failed;
+	}
+
+	// ================= Синхронизация десктоп<->веб (Фаза 7, PLAN §14) =================
+	// Десктоп — offline-first: локальный append-журнал авторитетен для своих записей, сервер —
+	// арбитр порядка (его seq). Push отправляет локальную дельту (байтовый курсор в data.bin),
+	// pull принимает дельту сервера (веб-ввод с телефона). Echo-подавление: идентичные записи
+	// (хэш содержимого) и тумстоуны уже удалённых Id не аппендятся повторно ни на одной стороне.
+	// Курсоры — data/sync.json. Локальная компакция (файл укоротился) сбрасывает push-курсор на
+	// заголовок: полный ре-push, сервер пропустит дубли по хэшу. Ошибки сети — тихо, балюн только
+	// на 401 (отозванный/неверный токен).
+	public static class SyncLayer{
+		public class Cur{
+			public List<long[]> Pulled=new List<long[]>();// байтовые диапазоны data.bin, дописанные pull-ом: не отправлять обратно на push (эхо серверной истории)
+			public long pushedSeq;// локальный offset data.bin, до которого отправлено
+			public long pulledSeq;// серверный offset data.bin, до которого получено
+			public long serverGen=-1;// поколение серверного журнала (reset при его компакции)
+			public long serverCfgRev;
+			public string lastOk="";
+			public string lastErr="";
+		}
+		public static Cur C=new Cur();
+		static readonly object CurLk=new object();
+		static readonly object DeadLk=new object();
+		static readonly HashSet<string> Dead=new HashSet<string>();// удалённые Guid "N" — echo тумстоунов
+		static int _busy;
+		static readonly HttpClient Hc=new HttpClient{Timeout=TimeSpan.FromSeconds(60)};
+		public static void MarkDead(Guid g){ lock(DeadLk) Dead.Add(g.ToString("N")); }
+		static string CurPath{ get{ return Path.Combine(ExeDir,"data","sync.json"); } }
+		public static long LocalLen{ get{ return File.Exists(DataBinPath)?new FileInfo(DataBinPath).Length:0; } }
+		public static void Load(){
+			try{
+				if(File.Exists(CurPath)){
+					Cur c=JsonConvert.DeserializeObject<Cur>(File.ReadAllText(CurPath));
+					if(c!=null) C=c;
+				}
+			}catch{}
+		}
+		public static void SaveCur(){ lock(CurLk){ try{ Directory.CreateDirectory(Path.GetDirectoryName(CurPath)); File.WriteAllText(CurPath,JsonConvert.SerializeObject(C)); }catch{} } }
+	public static void AddPulledRange(long a,long b){
+		if(b<=a) return;
+		lock(CurLk){
+			C.Pulled.Add(new long[]{a,b});
+			List<long[]> m=new List<long[]>();
+			foreach(long[] r in C.Pulled.OrderBy(x=>x[0])){ if(m.Count>0&&r[0]<=m[m.Count-1][1]) m[m.Count-1][1]=Math.Max(m[m.Count-1][1],r[1]); else m.Add(new long[]{r[0],r[1]}); }
+			C.Pulled=m.Count>500?new List<long[]>():m;// слишком много кусков — сброс: разовый ре-push, сервер пропустит по хэшу
+		}
+	}
+	static bool InPulled(long pos){ lock(CurLk) return C.Pulled.Any(r=>pos>=r[0]&&pos<r[1]); }
+		public static JObject StatusJson(){
+			return new JObject{["on"]=Cfg.SyncOn,["pushedSeq"]=C.pushedSeq,["pulledSeq"]=C.pulledSeq,
+				["lastOk"]=C.lastOk,["lastErr"]=C.lastErr,["busy"]=_busy!=0};
+		}
+		public static void RunAsync(){
+			if(!Cfg.SyncOn||string.IsNullOrWhiteSpace(Cfg.SyncToken)||string.IsNullOrWhiteSpace(Cfg.SyncUrl)) return;
+			if(Interlocked.CompareExchange(ref _busy,1,0)!=0) return;
+			Task.Run(()=>{
+				try{ Push(); Pull(); C.lastErr=""; }
+				catch(UnauthorizedAccessException ex){ C.lastErr=ex.Message; try{ NotifyIcon ni=Program.TrayIcon; ni?.ShowBalloonTip(8000,"BpMonitor — синхронизация",ex.Message+" — впишите новый токен в настройках",ToolTipIcon.Warning); }catch{} }
+				catch(Exception ex){ C.lastErr=ex.Message; Log("sync: "+ex.GetType().Name+": "+ex.Message+" | inner: "+(ex.InnerException!=null?ex.InnerException.GetType().Name+": "+ex.InnerException.Message:"-")+" | "+(ex.StackTrace!=null?ex.StackTrace.Split('\n')[0]:"")); }
+				SaveCur();
+				Interlocked.Exchange(ref _busy,0);
+			});
+		}
+		static string Base(){ return Cfg.SyncUrl.TrimEnd('/'); }
+		static JObject Post(string path,JObject body){
+			HttpRequestMessage rq=new HttpRequestMessage(HttpMethod.Post,Base()+path);
+			rq.Headers.TryAddWithoutValidation("Authorization","Bearer "+Cfg.SyncToken);
+			rq.Content=new StringContent(body.ToString(Formatting.None),Encoding.UTF8,"application/json");
+			return Send(rq);
+		}
+		static JObject Get(string path){
+			HttpRequestMessage rq=new HttpRequestMessage(HttpMethod.Get,Base()+path);
+			rq.Headers.TryAddWithoutValidation("Authorization","Bearer "+Cfg.SyncToken);
+			return Send(rq);
+		}
+		static JObject Send(HttpRequestMessage rq){
+			// keep-alive пул .NET: полуоткрытое соединение после обрыва отравляет все запросы
+			// (висят до таймаута). Ротация: lease 60 с, idle 30 с.
+			try{ System.Net.ServicePointManager.FindServicePoint(rq.RequestUri).ConnectionLeaseTimeout=60000; }catch{}
+			try{
+
+				using(HttpResponseMessage rs=Hc.SendAsync(rq).GetAwaiter().GetResult()){
+					string txt=rs.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+					if(rs.StatusCode==HttpStatusCode.Unauthorized) throw new UnauthorizedAccessException("неверный токен синхронизации");
+					if(!rs.IsSuccessStatusCode) throw new Exception("HTTP "+(int)rs.StatusCode+" "+(txt!=null&&txt.Length>120?txt.Substring(0,120):txt));
+					return txt!=null&&txt.Length>0?JObject.Parse(txt):new JObject();
+				}
+			}catch(AggregateException ae) when(ae.InnerExceptions.Count==1){ throw ae.InnerExceptions[0]; }
+		}
+		// ---------- транспорт ----------
+		static void Push(){
+			long len=LocalLen;
+			if(C.pushedSeq<5||len<C.pushedSeq){ C.pushedSeq=5; C.Pulled.Clear(); }// старт с нуля или локальная компакция -> полный ре-push
+			JObject body=new JObject{["recs"]=EncodeDelta(C.pushedSeq)};
+			if(Cfg.SyncCfgMaster=="desktop") body["cfg"]=JObject.FromObject(Cfg);
+			JObject r=Post("/api/sync/push",body);
+			C.pushedSeq=len;
+			if(r["gen"]!=null) C.serverGen=(long)r["gen"];
+			// курсор cfg обновляем из push-ответа только когда десктоп — хозяин конфига (он его всё равно перезаписал);
+			// иначе Pull сам согласит курсор, иначе push «съест» cfgRev и сервер не отдаст свежий cfg
+			if(r["cfgRev"]!=null&&Cfg.SyncCfgMaster=="desktop") C.serverCfgRev=(long)r["cfgRev"];
+			C.lastOk="push +"+(string)r["applied"]+" / проп "+(string)r["skipped"]+" "+DateTime.Now.ToString("HH:mm");
+		}
+		static void Pull(){
+			JObject d=Get("/api/sync/pull?since="+C.pulledSeq+"&gen="+C.serverGen+"&cfgRev="+C.serverCfgRev);
+			if(d["reset"]!=null){ C.serverGen=(long)d["gen"]; C.pulledSeq=0; d=Get("/api/sync/pull?since=0&gen="+C.serverGen+"&cfgRev="+C.serverCfgRev); }
+			int n=0; long start=LocalLen;
+			lock(Sync){ n=ApplyDelta(d); if(n>0){ Train(); SaveNn(); } }
+			if(n>0) AddPulledRange(start,LocalLen);// серверная история лежит в этом диапазоне — push её пропустит
+			if(Cfg.SyncCfgMaster=="server"&&d["cfg"] is JObject sc) ApplyServerCfg(sc);
+			if(d["seq"]!=null){ C.pulledSeq=(long)d["seq"]; if(d["cfgRev"]!=null) C.serverCfgRev=(long)d["cfgRev"]; }
+			C.lastOk+=" | pull +"+n+" "+DateTime.Now.ToString("HH:mm");
+		}
+		static void ApplyServerCfg(JObject cfg){
+			JObject body=new JObject(cfg);
+			foreach(string k in new string[]{"Port","SyncOn","SyncToken","SyncUrl","SyncIntervalMin","SyncCfgMaster"}) body.Remove(k);
+			JObject ha=body["Ha"] as JObject; if(ha!=null&&ha["Token"]!=null&&(string)ha["Token"]==TokenMask) ha.Remove("Token");
+			Config nc=JsonConvert.DeserializeObject<Config>(JsonConvert.SerializeObject(Cfg),new JsonSerializerSettings{ObjectCreationHandling=ObjectCreationHandling.Replace});
+			JsonConvert.PopulateObject(body.ToString(Formatting.None),nc,new JsonSerializerSettings{ObjectCreationHandling=ObjectCreationHandling.Replace});
+			nc.Port=Cfg.Port;
+			lock(Sync){ Cfg=nc; SaveCfg(); EnsureNnDim(); }
+		}
+		// ---------- кодирование локальной дельты ----------
+		// Пул строк собирается с начала файла (Id строк могут быть определены раньше курсора),
+		// записи выдаются только с позиции >= since.
+		public static JArray EncodeDelta(long since){
+			JArray arr=new JArray();
+			if(!File.Exists(DataBinPath)) return arr;
+			byte[] all=File.ReadAllBytes(DataBinPath);
+			Dictionary<int,string> pool=new Dictionary<int,string>();
+			using(MemoryStream ms=new MemoryStream(all))
+			using(BinaryReader r=new BinaryReader(ms)){
+				if(r.ReadUInt32()!=BinMagic) return arr;
+				r.ReadByte();
+				while(r.BaseStream.Position<r.BaseStream.Length){
+					long pos=r.BaseStream.Position;
+					byte type=r.ReadByte(); int len=r.ReadInt32();
+					if(len<0||r.BaseStream.Position+len>r.BaseStream.Length) break;
+					byte[] pl=r.ReadBytes(len);
+					using(BinaryReader p=new BinaryReader(new MemoryStream(pl))){
+						if(pos<since){ if(type==RecStr){ int pid=p.ReadUInt16(); pool[pid]=p.ReadString(); } continue; }
+						if(type!=RecStr&&InPulled(pos)) continue;// получено с сервера — не слать обратно
+						JObject jo=EncodeRec(type,p,pool);
+						if(jo!=null) arr.Add(jo);
+					}
+				}
+			}
+			return arr;
+		}
+		static JObject EncodeRec(byte type,BinaryReader p,Dictionary<int,string> pool){
+			if(type==RecStr){ int pid=p.ReadUInt16(); pool[pid]=p.ReadString(); return null; }
+			if(type==RecMeas){ JObject jo=JObject.FromObject(DecodeMeas(p,pool)); jo["k"]="meas"; return jo; }
+			if(type==RecMeasDel) return new JObject{["k"]="measDel",["Id"]=new Guid(p.ReadBytes(16)).ToString("N")};
+			if(type==RecEmo){ JObject jo=JObject.FromObject(DecodeEmo(p)); jo["k"]="emo"; return jo; }
+			if(type==RecEmoDel) return new JObject{["k"]="emoDel",["Id"]=new Guid(p.ReadBytes(16)).ToString("N")};
+			if(type==RecNoi){ JObject jo=JObject.FromObject(DecodeNoi(p,pool)); jo["k"]="noi"; return jo; }
+			if(type==RecNoiDel) return new JObject{["k"]="noiDel",["Id"]=new Guid(p.ReadBytes(16)).ToString("N")};
+			if(type==RecSleep){ JObject jo=JObject.FromObject(DecodeSleep(p)); jo["k"]="sleep"; return jo; }
+			if(type==RecSleepDel) return new JObject{["k"]="sleepDel",["Id"]=new Guid(p.ReadBytes(16)).ToString("N")};
+			if(type==RecMedTake){ JObject jo=JObject.FromObject(DecodeMt(p,pool)); jo["k"]="mt"; return jo; }
+			if(type==RecMedTakeDel) return new JObject{["k"]="mtDel",["Id"]=new Guid(p.ReadBytes(16)).ToString("N")};
+			return null;
+		}
+		static Measurement DecodeMeas(BinaryReader p,Dictionary<int,string> pool){
+			Guid g=new Guid(p.ReadBytes(16)); DateTime t=new DateTime(p.ReadInt64());
+			int sys=p.ReadUInt16(),dia=p.ReadUInt16(),pulse=p.ReadUInt16();
+			byte fl=p.ReadByte();
+			float? press=(fl&1)!=0?(float?)p.ReadSingle():null;
+			float? temp=(fl&2)!=0?(float?)p.ReadSingle():null;
+			float? hum=(fl&4)!=0?(float?)p.ReadSingle():null;
+			int? kp=(fl&8)!=0?(int?)p.ReadInt16():null;
+			float? emo=(fl&16)!=0?(float?)p.ReadSByte():null;
+			float? sleepH=(fl&32)!=0?(float?)p.ReadSingle():null;
+			int? sleepQ=(fl&64)!=0?(int?)p.ReadByte():null;
+			int wxId=p.ReadUInt16();
+			int mc=p.ReadByte(); List<string> meds=new List<string>();
+			for(int i2=0;i2<mc;i2++) meds.Add(GetPool(pool,p.ReadUInt16()));
+			int nc=p.ReadByte(); List<string> noise=new List<string>();
+			for(int i2=0;i2<nc;i2++) noise.Add(GetPool(pool,p.ReadUInt16()));
+			string note=Encoding.UTF8.GetString(p.ReadBytes(p.ReadUInt16()));
+			return new Measurement{Id=g.ToString("N"),T=t,Sys=sys,Dia=dia,Pulse=pulse,
+				PressMm=press,TempC=temp,Hum=hum,Kp=kp,SleepH=sleepH,SleepQ=sleepQ,
+				EmotionV=emo,EmotionLabel=emo!=null?DataStore.EmotionLabel((int)emo.Value):"",
+				Wx=wxId==0xFFFF?"":GetPool(pool,wxId),Meds=meds,Noise=noise,Note=note};
+		}
+		static EmotionEntry DecodeEmo(BinaryReader p){
+			Guid g=new Guid(p.ReadBytes(16)); DateTime t=new DateTime(p.ReadInt64());
+			int val=p.ReadSByte(); string note=Encoding.UTF8.GetString(p.ReadBytes(p.ReadUInt16()));
+			return new EmotionEntry{Id=g.ToString("N"),T=t,Val=val,Note=note};
+		}
+		static NoiseEntry DecodeNoi(BinaryReader p,Dictionary<int,string> pool){
+			Guid g=new Guid(p.ReadBytes(16)); DateTime t=new DateTime(p.ReadInt64());
+			string tp=GetPool(pool,p.ReadUInt16()); string note=Encoding.UTF8.GetString(p.ReadBytes(p.ReadUInt16()));
+			return new NoiseEntry{Id=g.ToString("N"),T=t,Type=tp,Note=note};
+		}
+		static SleepEntry DecodeSleep(BinaryReader p){
+			Guid g=new Guid(p.ReadBytes(16)); DateTime t=new DateTime(p.ReadInt64());
+			float hours=p.ReadSingle(); int q=p.ReadByte(); string note=Encoding.UTF8.GetString(p.ReadBytes(p.ReadUInt16()));
+			return new SleepEntry{Id=g.ToString("N"),T=t,Hours=hours,Quality=q,Note=note};
+		}
+		static MedTakeEntry DecodeMt(BinaryReader p,Dictionary<int,string> pool){
+			Guid g=new Guid(p.ReadBytes(16)); DateTime t=new DateTime(p.ReadInt64());
+			return new MedTakeEntry{Id=g.ToString("N"),T=t,Med=GetPool(pool,p.ReadUInt16())};
+		}
+		// ---------- применение серверной дельты (форма ответа /api/sync/pull) ----------
+		// Записи применяются как есть: снимки погоды/контекста вычислены на стороне-источнике.
+		public static int ApplyDelta(JObject d){
+			int n=0; JArray a;
+			if((a=d["meas"] as JArray)!=null) foreach(JToken jt in a){
+				Measurement m=jt.ToObject<Measurement>();
+				if(string.IsNullOrEmpty(m.Id)||m.T==default(DateTime)) continue;
+				Measurement ex=D.M.FirstOrDefault(x=>x.Id==m.Id);
+				if(ex!=null&&MeasHash(ex)==MeasHash(m)) continue;
+				D.M.RemoveAll(x=>x.Id==m.Id); D.M.Add(m); AppendMeasurement(m); n++;
+			}
+			if((a=d["measDel"] as JArray)!=null) foreach(JToken jt in a) if(ApplyDel((string)jt,D.M,x=>x.Id,RecMeasDel)) n++;
+			if((a=d["emo"] as JArray)!=null) foreach(JToken jt in a){
+				EmotionEntry e=jt.ToObject<EmotionEntry>();
+				if(string.IsNullOrEmpty(e.Id)||e.T==default(DateTime)) continue;
+				EmotionEntry ex=D.E.FirstOrDefault(x=>x.Id==e.Id);
+				if(ex!=null&&EmoHash(ex)==EmoHash(e)) continue;
+				D.E.RemoveAll(x=>x.Id==e.Id); D.E.Add(e); AppendEmotion(e); n++;
+			}
+			if((a=d["emoDel"] as JArray)!=null) foreach(JToken jt in a) if(ApplyDel((string)jt,D.E,x=>x.Id,RecEmoDel)) n++;
+			if((a=d["noi"] as JArray)!=null) foreach(JToken jt in a){
+				NoiseEntry ne=jt.ToObject<NoiseEntry>();
+				if(string.IsNullOrEmpty(ne.Id)||ne.T==default(DateTime)) continue;
+				NoiseEntry ex=D.N.FirstOrDefault(x=>x.Id==ne.Id);
+				if(ex!=null&&NoiHash(ex)==NoiHash(ne)) continue;
+				D.N.RemoveAll(x=>x.Id==ne.Id); D.N.Add(ne); AppendNoise(ne); n++;
+			}
+			if((a=d["noiDel"] as JArray)!=null) foreach(JToken jt in a) if(ApplyDel((string)jt,D.N,x=>x.Id,RecNoiDel)) n++;
+			if((a=d["sleep"] as JArray)!=null) foreach(JToken jt in a){
+				SleepEntry se=jt.ToObject<SleepEntry>();
+				if(string.IsNullOrEmpty(se.Id)||se.T==default(DateTime)) continue;
+				SleepEntry ex=D.S.FirstOrDefault(x=>x.Id==se.Id);
+				if(ex!=null&&SleepHash(ex)==SleepHash(se)) continue;
+				D.S.RemoveAll(x=>x.Id==se.Id); D.S.Add(se); AppendSleep(se); n++;
+			}
+			if((a=d["sleepDel"] as JArray)!=null) foreach(JToken jt in a) if(ApplyDel((string)jt,D.S,x=>x.Id,RecSleepDel)) n++;
+			if((a=d["medtake"] as JArray)!=null) foreach(JToken jt in a){
+				MedTakeEntry mt=jt.ToObject<MedTakeEntry>();
+				if(string.IsNullOrEmpty(mt.Id)||mt.T==default(DateTime)) continue;
+				MedTakeEntry ex=D.MedTakes.FirstOrDefault(x=>x.Id==mt.Id);
+				if(ex!=null&&MtHash(ex)==MtHash(mt)) continue;
+				D.MedTakes.RemoveAll(x=>x.Id==mt.Id); D.MedTakes.Add(mt); AppendMedTake(mt); n++;
+			}
+			if((a=d["medtakeDel"] as JArray)!=null) foreach(JToken jt in a) if(ApplyDel((string)jt,D.MedTakes,x=>x.Id,RecMedTakeDel)) n++;
+			return n;
+		}
+		static bool ApplyDel<T>(string id,List<T> list,Func<T,string> getid,byte delType){
+			if(string.IsNullOrWhiteSpace(id)) return false;
+			bool present=list.Any(x=>getid(x)==id);
+			lock(DeadLk){ if(!present&&Dead.Contains(id)) return false; }
+			list.RemoveAll(x=>getid(x)==id);
+			Guid g; if(Guid.TryParse(id,out g)) MarkDead(g);
+			AppendGuidRec(delType,id);
+			return true;
+		}
+		// ---------- хэши содержимого (должны совпадать с серверными MeasHash/... в bpxor) ----------
+		static string HH(object v){ return v==null?"":Convert.ToString(v,CultureInfo.InvariantCulture); }
+		public static string MeasHash(Measurement m){
+			return string.Join("|",m.T.Ticks,m.Sys,m.Dia,m.Pulse,HH(m.PressMm),HH(m.TempC),HH(m.Hum),HH(m.Kp),HH(m.EmotionV),HH(m.SleepH),HH(m.SleepQ),m.Wx??"",m.Note??"",
+				string.Join(",",(m.Meds??new List<string>()).OrderBy(x=>x)),string.Join(",",(m.Noise??new List<string>()).OrderBy(x=>x)));
+		}
+		static string EmoHash(EmotionEntry e){ return string.Join("|",e.T.Ticks,e.Val,e.Note??""); }
+		static string NoiHash(NoiseEntry n){ return string.Join("|",n.T.Ticks,n.Type??"",n.Note??""); }
+		static string SleepHash(SleepEntry s){ return string.Join("|",HH(s.Hours),s.Quality,s.Note??"",s.T.Ticks); }
+		static string MtHash(MedTakeEntry mt){ return string.Join("|",mt.T.Ticks,mt.Med??""); }
 	}
 }
 
@@ -2626,17 +2962,21 @@ static class Program{
 			}
 		});
 		System.Windows.Forms.Timer timer=new System.Windows.Forms.Timer{Interval=1000};
-		int tick=0,lastPoll=0;
+		int tick=0,lastPoll=0,lastSync=0;
 		timer.Tick+=(s,e)=>{
 			tick++;
 			App.CheckAlarms(TrayIcon);
 			App.CheckMedReminders(TrayIcon);
+			// синхронизация: по интервалу или через минуту после локальной записи (журнал вырос)
+			if(App.Cfg.SyncOn&&(tick-lastSync>=Math.Max(1,App.Cfg.SyncIntervalMin)*60||(App.SyncLayer.LocalLen>App.SyncLayer.C.pushedSeq&&tick-lastSync>=60))){ lastSync=tick; App.SyncLayer.RunAsync(); }
 			if(tick%3600==0) App.DailyBackup();// долгий аптайм: бэкап раз в сутки без перезапуска
 			if(tick-lastPoll<Math.Max(1,App.Cfg.PollMin)*60) return;
 			lastPoll=tick;
 			App.PollWeather();
 		};
 		timer.Start();
+		App.SyncLayer.Load();
+		if(App.Cfg.SyncOn) Task.Delay(5000).ContinueWith(_=>App.SyncLayer.RunAsync());// первый цикл через 5 с (дождаться сети)
 		App.PollWeather();
 		OpenBrowser();
 		Application.Run(ctx);

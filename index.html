@@ -323,6 +323,27 @@ canvas{max-width:100%;border:1px solid var(--bd);background:#fff}
       <p class="mut" style="margin:6px 0 0">Новый размер слоя применится после «Сбросить модель» (вкладка «Модель»).</p>
     </section>
     <section>
+      <h3>Синхронизация с bp.xor.world</h3>
+      <div class="grid">
+        <label><input type="checkbox" id="c-sync-on"> Синхронизация</label>
+        <label>Токен <input id="c-sync-tok" style="width:220px" placeholder="из веб-настроек «Устройства»"></label>
+        <label>Интервал, мин <input type="number" id="c-sync-int" style="width:60px"></label>
+      </div>
+      <div class="grid" style="margin-top:6px">
+        <label>URL <input id="c-sync-url" style="width:220px"></label>
+        <label>Конфиг
+          <select id="c-sync-cfg" style="width:170px">
+            <option value="">не синхронизировать</option>
+            <option value="desktop">десктоп главный</option>
+            <option value="server">сервер главный</option>
+          </select>
+        </label>
+        <button onclick="syncNow()">Синхронизировать сейчас</button>
+      </div>
+      <p class="mut" id="sync-state" style="margin:6px 0 0"></p>
+      <p class="mut" style="margin:0">Токен создаётся в веб-настройках bp.xor.world («Устройства»), показывается один раз. Записи с телефона приедут на десктоп, локальные — на сервер.</p>
+    </section>
+    <section>
       <h3>Перенос на другой ПК</h3>
       <div class="grid">
         <button onclick="exportAll()" title="единый JSON: настройки + все данные + модель + справочник ФК">⬇ Экспорт всего</button>
@@ -925,6 +946,20 @@ function fillCfg(){
   $("c-lr").value=c.Nn.Lr;$("c-hid").value=c.Nn.Hidden;$("c-hid2").value=c.Nn.Hidden2;$("c-ep").value=c.Nn.Epochs;
   const miss=(S.measurements||[]).filter(m=>m.PressMm==null||m.TempC==null||m.Hum==null||m.Kp==null).length;
   $("c-wxb").textContent=miss?("Заполнить погоду ("+miss+")"):"Погода заполнена ✓";
+  $("c-sync-on").checked=!!c.SyncOn;$("c-sync-tok").value=c.SyncToken||"";$("c-sync-int").value=c.SyncIntervalMin||15;
+  $("c-sync-url").value=c.SyncUrl||"https://bp.xor.world";$("c-sync-cfg").value=c.SyncCfgMaster||"";
+  syncStatus();
+}
+function syncStatus(){
+  fetch("/api/sync/status").then(r=>r.json()).then(j=>{
+    const el=$("sync-state");if(!el)return;
+    el.textContent=j.on?("состояние: "+(j.busy?"синхронизация...":(j.lastErr?"ошибка: "+j.lastErr:(j.lastOk||"ещё не выполнялась"))+" · отправлено "+j.pushedSeq+" Б, получено "+j.pulledSeq+" Б")):"синхронизация выключена";
+  }).catch(()=>{});
+}
+async function syncNow(){
+  await apiPost("/api/sync/now",{});
+  const el=$("sync-state");if(el)el.textContent="синхронизация запущена...";
+  setTimeout(syncStatus,2500);setTimeout(syncStatus,8000);
 }
 function toggleAuto(on){
   apiPost("/api/autostart",{on:on}).then(j=>{
@@ -944,6 +979,8 @@ function saveCfg(){
     humidity:$("c-ha-s2").value.trim(),kp:$("c-ha-s3").value.trim()};
   c.Nn=c.Nn||{Lr:0.05,Hidden:12,Hidden2:16,Epochs:30};
   c.Nn.Lr=+$("c-lr").value;c.Nn.Hidden=+$("c-hid").value;c.Nn.Hidden2=+$("c-hid2").value||16;c.Nn.Epochs=+$("c-ep").value;
+  c.SyncOn=$("c-sync-on").checked;c.SyncToken=$("c-sync-tok").value.trim();c.SyncIntervalMin=+$("c-sync-int").value||15;
+  c.SyncUrl=$("c-sync-url").value.trim()||"https://bp.xor.world";c.SyncCfgMaster=$("c-sync-cfg").value;
   apiPost("/api/config",c).then(j=>{
     if(!j.ok){$("cfg-msg").textContent="";flash(j.err||"Ошибка",false);return;}
     if(j.restartRequired){
