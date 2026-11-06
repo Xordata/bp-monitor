@@ -2590,6 +2590,7 @@ static class App{
 		static readonly object DeadLk=new object();
 		static readonly HashSet<string> Dead=new HashSet<string>();// удалённые Guid "N" — echo тумстоунов
 		static int _busy;
+		static string LastPhase="";
 		static readonly HttpClient Hc=new HttpClient{Timeout=TimeSpan.FromSeconds(60)};
 		public static void MarkDead(Guid g){ lock(DeadLk) Dead.Add(g.ToString("N")); }
 		static string CurPath{ get{ return Path.Combine(ExeDir,"data","sync.json"); } }
@@ -2621,9 +2622,9 @@ static class App{
 			if(!Cfg.SyncOn||string.IsNullOrWhiteSpace(Cfg.SyncToken)||string.IsNullOrWhiteSpace(Cfg.SyncUrl)) return;
 			if(Interlocked.CompareExchange(ref _busy,1,0)!=0) return;
 			Task.Run(()=>{
-				try{ Push(); Pull(); C.lastErr=""; }
+				try{ LastPhase="push"; Push(); LastPhase="pull"; Pull(); C.lastErr=""; }
 				catch(UnauthorizedAccessException ex){ C.lastErr=ex.Message; try{ NotifyIcon ni=Program.TrayIcon; ni?.ShowBalloonTip(8000,"BpMonitor — синхронизация",ex.Message+" — впишите новый токен в настройках",ToolTipIcon.Warning); }catch{} }
-				catch(Exception ex){ C.lastErr=ex.Message; Log("sync: "+ex.GetType().Name+": "+ex.Message+" | inner: "+(ex.InnerException!=null?ex.InnerException.GetType().Name+": "+ex.InnerException.Message:"-")+" | "+(ex.StackTrace!=null?ex.StackTrace.Split('\n')[0]:"")); }
+				catch(Exception ex){ C.lastErr=ex.Message; Log("sync: ["+LastPhase+"] "+ex.GetType().Name+": "+ex.Message+" | inner: "+(ex.InnerException!=null?ex.InnerException.GetType().Name+": "+ex.InnerException.Message:"-")+" | "+(ex.StackTrace!=null?ex.StackTrace.Split('\n')[0]:"")); }
 				SaveCur();
 				Interlocked.Exchange(ref _busy,0);
 			});
