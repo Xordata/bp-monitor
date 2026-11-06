@@ -66,6 +66,7 @@ public class Config{
 	public bool OpenBrowserOnStart=true;// false — не открывать браузер при запуске (двойной клик по трею откроет)
 	public double Lat=55.75,Lon=37.62;
 	public string WxSource="metno";// "metno" — api.met.no (open-meteo заблокирован провайдером без Tor/прокси), "openmeteo" — прежний источник
+	public string WxContact="admin@example.org";// контакт для User-Agent met.no (политика мет.службы требует реальный e-mail; в config.json рядом с exe)
 	public int PollMin=15;// период опроса погоды, мин
 	public string AlarmFile="alarm.mp3";// mp3 рядом с exe
 	public int AlarmAheadMin=5;// напоминание в трее до будильника
@@ -1192,7 +1193,7 @@ static class App{
 			if(Cfg.WxSource=="metno"){// met.no locationforecast: UA с контактом обязателен по политике, времена UTC -> локальное
 				string mu=string.Format(CultureInfo.InvariantCulture,"https://api.met.no/weatherapi/locationforecast/2.0/compact?lat={0:0.0000}&lon={1:0.0000}",Cfg.Lat,Cfg.Lon);
 				using(var rq=new HttpRequestMessage(HttpMethod.Get,mu)){
-					rq.Headers.UserAgent.ParseAdd("BpMonitor/1.0 (https://bp.xor.world; contact: admin@example.org)");
+					rq.Headers.UserAgent.ParseAdd("BpMonitor/1.0 (https://bp.xor.world; contact: "+Cfg.WxContact+")");
 					using(var rp=await Http.SendAsync(rq)){ rp.EnsureSuccessStatusCode(); ApplyMetNo(JObject.Parse(await rp.Content.ReadAsStringAsync())); }
 				}
 			}else{
