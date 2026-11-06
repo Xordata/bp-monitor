@@ -63,6 +63,7 @@ public class NnCfg{
 }
 public class Config{
 	public int Port=8090;
+	public bool OpenBrowserOnStart=true;// false — не открывать браузер при запуске (двойной клик по трею откроет)
 	public double Lat=55.75,Lon=37.62;
 	public string WxSource="metno";// "metno" — api.met.no (open-meteo заблокирован провайдером без Tor/прокси), "openmeteo" — прежний источник
 	public int PollMin=15;// период опроса погоды, мин
@@ -2062,6 +2063,18 @@ static class App{
 						Respond(ctx.Response,200,"text/html",Encoding.UTF8.GetBytes("<h3>index.html не найден рядом с exe</h3>"));
 						return;
 					}
+					case"/help":{
+						string hp2=Path.Combine(ExeDir,"help.html");
+						if(File.Exists(hp2)){Respond(ctx.Response,200,"text/html; charset=utf-8",File.ReadAllBytes(hp2));return;}
+						Respond(ctx.Response,200,"text/html",Encoding.UTF8.GetBytes("<h3>help.html не найден рядом с exe</h3>"));
+						return;
+					}
+					case"/favicon.ico":{
+						string fi=Path.Combine(ExeDir,"app.ico");
+						if(File.Exists(fi)){ctx.Response.ContentType="image/x-icon";ctx.Response.ContentLength64=new FileInfo(fi).Length;using(var fs=File.OpenRead(fi))fs.CopyTo(ctx.Response.OutputStream);ctx.Response.Close();return;}
+						Respond(ctx.Response,404,"text/plain",Encoding.UTF8.GetBytes("favicon?"));
+						return;
+					}
 					case"/api/state":
 						JsonResp(ctx.Response,StateJson());
 						return;
@@ -3060,7 +3073,7 @@ static class Program{
 		App.SyncLayer.Load();
 		if(App.Cfg.SyncOn) Task.Delay(5000).ContinueWith(_=>App.SyncLayer.RunAsync());// первый цикл через 5 с (дождаться сети)
 		App.PollWeather();
-		OpenBrowser();
+		if(App.Cfg.OpenBrowserOnStart)OpenBrowser();
 		Application.Run(ctx);
 		timer.Stop();
 		http.Stop();

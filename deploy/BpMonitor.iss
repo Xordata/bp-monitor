@@ -41,6 +41,7 @@ Name: "desktopicon"; Description: "Ярлык на рабочем столе"; G
 Source: "..\bin\Release\net481\BpMonitor.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\bin\Release\net481\BpMonitor.exe.config"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\bin\Release\net481\index.html"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\bin\Release\net481\help.html"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\bin\Release\net481\alarm.mp3"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\bin\Release\net481\app.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\bin\Release\net481\*.dll"; DestDir: "{app}"; Flags: ignoreversion

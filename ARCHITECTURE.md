@@ -1,6 +1,6 @@
 # ARCHITECTURE — BpMonitor
 
-Версия приложения: 2.0. Стек: .NET Framework 4.8.1, C# 7.3 (`LangVersion` закреплён), WinForms (только трей/балюны), `HttpListener` (поверх http.sys), Newtonsoft.Json, NAudio (mp3), MiniExcel (экспорт). Один исходник `BpMonitor.cs` (~2650 строк) + одностраничник `index.html`.
+Версия приложения: 2.0. Стек: .NET Framework 4.8.1, C# 7.3 (`LangVersion` закреплён), WinForms (только трей/балюны), `HttpListener` (поверх http.sys), Newtonsoft.Json, NAudio (mp3), MiniExcel (экспорт). Один исходник `BpMonitor.cs` (~3120 строк) + одностраничник `index.html` + страница-инструкция `help.html` (общая с bp.xor.world, раздаётся по `/help`).
 
 ## Верхнеуровневая схема
 
@@ -14,11 +14,13 @@
 │                                                                                  │
 │  HTTP-поток: http.GetContext() → Task.Run(App.Handle) на каждый запрос           │
 │   ├─ GET  /            → index.html с диска (читается каждый запрос!)            │
+│   ├─ GET  /help        → help.html (инструкция, общая с веб-версией)              │
+│   ├─ GET  /favicon.ico → app.ico (иконка приложения = «локальный» интерфейс)      │
 │   ├─ GET  /api/state   → StateJson(): cfg+данные+НН+погода одним снимком         │
 │   └─ POST /api/…       → мутация D/Cfg → append в data.bin → Train/SaveNn        │
 │                                                                                  │
 │  Фоновые async-задачи (Task.Run / async Task):                                   │
-│   ├─ PollWeatherAsync(): open-meteo current + GFZ Kp + HA-датчики → Weather      │
+│   ├─ PollWeatherAsync(): met.no (WxSource=metno, по умолчанию) или open-meteo + GFZ Kp + HA-датчики → Weather │
 │   ├─ FetchWxDayAsync(): архив погоды/Kp для исторических дат                     │
 │   ├─ фоновые задачи /api/nn/train_ga, /api/nn/validate и /api/weather/backfill (статус в /api/job) │
 │   └─ NAudio.WaveOut: зацикленный mp3 будильника                                  │
@@ -41,6 +43,7 @@
 | **ФК лекарств** | `MedPkDb` (справочник T½/длительности, грузится из `medpk.json` рядом с exe; при отсутствии — эталон `MedPkDefault`), `MedKtFor`, `MedIntakes` (union отметок приёма `D.MedTakes` и лекарств с измерений), PK-фичи; `CheckMedReminders` — балюны по `Cfg.MedTimes` |
 | **Контекст** | `EmotionAt/NoiseAt/SleepAt/SleepQualityAt` (окна join для НН), `Snapshot/SnapshotContext` |
 | **Перенос** | `ExportAll()/ImportAll()` — единый JSON (cfg+данные+НН+medpk), `GET /api/export/all` / `POST /api/import/all` (preimport-архив перед заменой) |
+| **Синхронизация** | `SyncLayer` — дельта-синхрон с bp.xor.world: курсоры/`Pulled`-диапазоны в `data/sync.json`, `EncodeDelta/ApplyDelta` (LWW по серверному seq, тумстоуны, echo-подавление по хэшу содержимого + `Dead`-множество), транспорт `Hc` (Bearer-токен, 60 с таймаут), `StatusJson`/`RunAsync` для UI и таймера трея |
 | **Будильники** | `CheckAlarms` (окно догона 30 мин, напоминания), `StartAlarm/StopAlarm` (NAudio) |
 | **HTTP** | `Handle(ctx)` — роут по `switch(path)`, `JsonResp`, `IsLocalSameOrigin` |
 | **Program** | мьютекс single-instance, трей, автозапуск (HKCU\...\Run), таймеры |
@@ -95,8 +98,8 @@ POST /api/measurement {t,sys,dia,pulse,note,meds[]}
 
 ## Погодный конвейер
 
-1. **Живой кэш** `Weather` (PressMm/TempC/Hum/Kp/Text/Updated): `PollWeather()` по таймеру (PollMin) и по требованию. Источники: open-meteo `current`, GFZ Kp (последние 24 ч, берётся свежий 3-ч бин), поверх — датчики Home Assistant (если настроены; токен в API отдаётся замаскированным).
-2. **Прогноз**: тот же open-meteo запрос отдаёт `hourly` на 2 суток → `Forecast` (список `WxHour`, локальное время); `KpForecast` — NOAA SWPC `noaa-planetary-k-index-forecast.json` (entries `observed!=observed`, 3-ч бины UTC). `ForecastPredictions(12)` прогоняет НН по ближайшим 12 часам (Kp — прогнозный, иначе текущий) → `nn.forecast` в state и упреждающий popup `MaybePopupForecast()` (первый час выше нормы → балюн «через ~N часов», общий cooldown с `MaybePopup`). `weather.kpForecast` — макс прогнозного Kp за 24 ч (флаг в шапке при ≥5).
+1. **Живой кэш** `Weather` (PressMm/TempC/Hum/Kp/Text/Updated): `PollWeather()` по таймеру (PollMin) и по требованию. Источник по умолчанию — **met.no locationforecast** (`Cfg.WxSource="metno"`, порт с сервера: `MetNoWmo` symbol_code→WMO, `ApplyMetNo`, времена UTC→local, UA с контактом обязателен; met.no доступен и напрямую, и через Tor/прокси — в отличие от open-meteo, который провайдер блокирует). `WxSource="openmeteo"` — прежний open-meteo `current`. GFZ Kp (последние 24 ч, берётся свежий 3-ч бин), поверх — датчики Home Assistant (если настроены; токен в API отдаётся замаскированным).
+2. **Прогноз**: met.no `timeseries.next_1_hours` (или open-meteo `hourly`) на 2 суток → `Forecast` (список `WxHour`, локальное время); `KpForecast` — NOAA SWPC `noaa-planetary-k-index-forecast.json` (entries `observed!=observed`, 3-ч бины UTC). `ForecastPredictions(12)` прогоняет НН по ближайшим 12 часам (Kp — прогнозный, иначе текущий) → `nn.forecast` в state и упреждающий popup `MaybePopupForecast()` (первый час выше нормы → балюн «через ~N часов», общий cooldown с `MaybePopup`). `weather.kpForecast` — макс прогнозного Kp за 24 ч (флаг в шапке при ≥5).
 3. **Архив** `FetchWxDay(date)`: дата ≤5 дней назад → forecast API с `past_days`; глубже → archive-api (ERA5). Kp — GFZ json за сутки. `FillWx(m)` заполняет только пустые поля записи (или все — при `force`), `BackfillWeather()` — массово по всем записям с дырками; `force_until` перезаписывает даже заполненное (с откатом, если архив недоступен). После бэкфилла — переобучение НН (погода входит в фичи).
 4. **Popup**: `MaybePopup()` — прогноз НН на текущей погоде выше `NormSys/NormDia` → балюн + звук-напоминание, не чаще `PopupCooldownMin`.
 
@@ -128,7 +131,7 @@ POST /api/measurement {t,sys,dia,pulse,note,meds[]}
 
 ```
 dotnet build                    # net481, требует .NET Framework 4.8.1 targeting pack
-bin\Debug\net481\BpMonitor.exe  # index.html и alarm.mp3 копируются в bin (csproj PreserveNewest)
+bin\Debug\net481\BpMonitor.exe  # index.html, help.html, alarm.mp3, app.ico копируются в bin (csproj PreserveNewest)
 ```
 
-Правки только HTML подхватываются на лету (файл читается на каждый запрос) — достаточно скопировать `index.html` в `bin\Debug\net481\`. Правки C# требуют kill+build+restart. Git-репозиторий заведён (`bin/`, `obj/`, `data/`, `config.json`, `backups/` в `.gitignore`). Тесты: `BpMonitor.exe --selftest` — 15 проверок ядра в песочнице (см. `App.SelfTest`); ручная проверка UI делалась через браузер-автоматизацию.
+Правки только HTML подхватываются на лету (файл читается на каждый запрос) — достаточно скопировать `index.html` в `bin\Debug\net481\`. Правки C# требуют kill+build+restart. Git-репозиторий заведён (`bin/`, `obj/`, `data/`, `config.json`, `backups/` в `.gitignore`). Тесты: `BpMonitor.exe --selftest` — 19 проверок ядра в песочнице (см. `App.SelfTest`); ручная проверка UI делалась через браузер-автоматизацию.
