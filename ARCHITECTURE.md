@@ -1,6 +1,6 @@
-# ARCHITECTURE — BpMonitor
+﻿# ARCHITECTURE — BpMonitor
 
-Версия приложения: 2.0. Стек: .NET Framework 4.8.1, C# 7.3 (`LangVersion` закреплён), WinForms (только трей/балюны), `HttpListener` (поверх http.sys), Newtonsoft.Json, NAudio (mp3), MiniExcel (экспорт). Один исходник `BpMonitor.cs` (~3120 строк) + одностраничник `index.html` + страница-инструкция `help.html` (общая с bp.xor.world, раздаётся по `/help`).
+Версия приложения: 2.0. Стек: .NET Framework 4.8.1, C# 7.3 (`LangVersion` закреплён), WinForms (только трей/балюны), `HttpListener` (поверх http.sys), Newtonsoft.Json, NAudio (mp3), MiniExcel (экспорт). Один исходник `BpMonitor.cs` (~3170 строк) + одностраничник `index.html` + страница-инструкция `help.html` (общая с bp.xor.world, раздаётся по `/help`).
 
 ## Верхнеуровневая схема
 
@@ -22,7 +22,7 @@
 │  Фоновые async-задачи (Task.Run / async Task):                                   │
 │   ├─ PollWeatherAsync(): met.no (WxSource=metno, по умолчанию) или open-meteo + GFZ Kp + HA-датчики → Weather │
 │   ├─ FetchWxDayAsync(): архив погоды/Kp для исторических дат                     │
-│   ├─ фоновые задачи /api/nn/train_ga, /api/nn/validate и /api/weather/backfill (статус в /api/job) │
+│   ├─ фоновые задачи /api/nn/train_ga, /api/nn/validate, /api/nn/tune и /api/weather/backfill (статус в /api/job) │
 │   └─ NAudio.WaveOut: зацикленный mp3 будильника                                  │
 └──────────────────────────────────────────────────────────────────────────────────┘
         ↕ lock(Sync) — консистентность D/Cfg; lock(Io) — запись в data.bin
@@ -113,7 +113,7 @@ POST /api/measurement {t,sys,dia,pulse,note,meds[]}
 
 - `HttpListener` слушает только prefix `http://localhost:port/` — доступ извне не предполагается даже на уровне стека.
 - `IsLocalSameOrigin`: только localhost + Origin/Referer с localhost (защита от злых страниц/CSRF). POST без Origin (curl) разрешён — локальный доверенный сценарий.
-- HTTPS нет; HA-токен маскируется в ответах (`TokenMask`), в config.json хранится открыто (локальный файл пользователя).
+- HTTPS нет; HA-токен и токен синхронизации маскируются в ответах (`TokenMask`), в config.json хранятся открыто (локальный файл пользователя). Записи из внешних источников (sync-pull, импорт) принимаются только с Id-формата Guid.
 - Трей-приложение без прав администратора; автозапуск — HKCU\Software\Microsoft\Windows\CurrentVersion\Run.
 
 ## Известные подводные камни (для разрабатывающих)
@@ -134,4 +134,4 @@ dotnet build                    # net481, требует .NET Framework 4.8.1 ta
 bin\Debug\net481\BpMonitor.exe  # index.html, help.html, alarm.mp3, app.ico копируются в bin (csproj PreserveNewest)
 ```
 
-Правки только HTML подхватываются на лету (файл читается на каждый запрос) — достаточно скопировать `index.html` в `bin\Debug\net481\`. Правки C# требуют kill+build+restart. Git-репозиторий заведён (`bin/`, `obj/`, `data/`, `config.json`, `backups/` в `.gitignore`). Тесты: `BpMonitor.exe --selftest` — 19 проверок ядра в песочнице (см. `App.SelfTest`); ручная проверка UI делалась через браузер-автоматизацию.
+Правки только HTML подхватываются на лету (файл читается на каждый запрос) — достаточно скопировать `index.html` в `bin\Debug\net481\`. Правки C# требуют kill+build+restart. Git-репозиторий заведён (`bin/`, `obj/`, `data/`, `config.json`, `backups/` в `.gitignore`). Тесты: `BpMonitor.exe --selftest` — 20 проверок ядра в песочнице (см. `App.SelfTest`); ручная проверка UI делалась через браузер-автоматизацию.

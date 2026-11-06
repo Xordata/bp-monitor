@@ -319,7 +319,7 @@ let filter={from:"",to:"",sysMin:"",diaMin:"",pulseMin:"",onlyMeds:false};
 
 const $=i=>document.getElementById(i);
 const cssv=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 async function apiPost(p,b){const r=await fetch(p,{method:"POST",headers:{"Content-Type":"application/json;charset=utf-8"},body:JSON.stringify(b||{})});return r.json();}
 function flash(t,ok=true,ms=2500){const f=$("flash");f.textContent=t;f.style.display="block";f.style.background=ok?"#2e7d32":"#c62828";clearTimeout(f._t);f._t=setTimeout(()=>f.style.display="none",ms);}
 const p2=n=>String(n).padStart(2,"0");

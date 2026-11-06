@@ -1976,6 +1976,7 @@ static class App{
 		JToken t;
 		if(cfg["Ha"]!=null&&cfg["Ha"]["Token"]!=null&&(t=cfg["Ha"]["Token"]).ToString()!="")
 			cfg["Ha"]["Token"]=TokenMask;
+		if(cfg["SyncToken"]!=null&&cfg["SyncToken"].ToString()!="") cfg["SyncToken"]=TokenMask;// токен синхрона — секрет, в UI только на замену
 		return cfg;
 	}
 	public static JObject StateJson(){
@@ -2232,12 +2233,14 @@ static class App{
 				case"/api/config":{
 					int oldPort=Cfg.Port;
 					string oldToken=Cfg.Ha!=null?Cfg.Ha.Token:"";
+					string oldSync=Cfg.SyncToken;
 					string oldDob=Cfg.Dob??"",oldSex=Cfg.Sex??"";
 					// MERGE: обновляются только поля, присутствующие в теле; остальные сохраняются.
 					// Клон + PopulateObject: при ошибке в теле текущий конфиг не трогается.
 					Config nc=JsonConvert.DeserializeObject<Config>(JsonConvert.SerializeObject(Cfg),new JsonSerializerSettings{ObjectCreationHandling=ObjectCreationHandling.Replace});
 					JsonConvert.PopulateObject(body,nc,new JsonSerializerSettings{ObjectCreationHandling=ObjectCreationHandling.Replace});// Replace: массивы из тела ЗАМЕНЯЮТ существующие (Auto дописывал элементы в список -> дубли будильников/лекарств при каждом сохранении)
 					if(nc.Ha!=null&&nc.Ha.Token==TokenMask) nc.Ha.Token=oldToken;// пришла маска — оставляем реальный токен
+					if(nc.SyncToken==TokenMask) nc.SyncToken=oldSync;
 					nc.Meds=nc.Meds.Where(x=>!string.IsNullOrWhiteSpace(x)).Select(x=>x.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();// дедуп по названию без учёта регистра
 					nc.Noises=nc.Noises.Where(x=>!string.IsNullOrWhiteSpace(x)).Select(x=>x.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 					if(nc.MedKt!=null){ Dictionary<string,MedKt> mk=new Dictionary<string,MedKt>(); foreach(KeyValuePair<string,MedKt> kv in nc.MedKt) if(!string.IsNullOrWhiteSpace(kv.Key)) mk[NormMed(kv.Key)]=kv.Value; nc.MedKt=mk; }
@@ -2908,12 +2911,15 @@ static class App{
 			return new MedTakeEntry{Id=g.ToString("N"),T=t,Med=GetPool(pool,p.ReadUInt16())};
 		}
 		// ---------- применение серверной дельты (форма ответа /api/sync/pull) ----------
+		// Id из внешних источников (сервер, импорт) обязан быть Guid: кривые строки
+		// попадают в inline-onclick UI (XSS при компрометации сервера/токена)
+		static bool GoodId(string s){ Guid g; return Guid.TryParse(s,out g); }
 		// Записи применяются как есть: снимки погоды/контекста вычислены на стороне-источнике.
 		public static int ApplyDelta(JObject d){
 			int n=0; JArray a;
 			if((a=d["meas"] as JArray)!=null) foreach(JToken jt in a){
 				Measurement m=jt.ToObject<Measurement>();
-				if(string.IsNullOrEmpty(m.Id)||m.T==default(DateTime)) continue;
+				if(!GoodId(m.Id)||m.T==default(DateTime)) continue;
 				Measurement ex=D.M.FirstOrDefault(x=>x.Id==m.Id);
 				if(ex!=null&&MeasHash(ex)==MeasHash(m)) continue;
 				D.M.RemoveAll(x=>x.Id==m.Id); D.M.Add(m); AppendMeasurement(m); n++;
@@ -2921,7 +2927,7 @@ static class App{
 			if((a=d["measDel"] as JArray)!=null) foreach(JToken jt in a) if(ApplyDel((string)jt,D.M,x=>x.Id,RecMeasDel)) n++;
 			if((a=d["emo"] as JArray)!=null) foreach(JToken jt in a){
 				EmotionEntry e=jt.ToObject<EmotionEntry>();
-				if(string.IsNullOrEmpty(e.Id)||e.T==default(DateTime)) continue;
+				if(!GoodId(e.Id)||e.T==default(DateTime)) continue;
 				EmotionEntry ex=D.E.FirstOrDefault(x=>x.Id==e.Id);
 				if(ex!=null&&EmoHash(ex)==EmoHash(e)) continue;
 				D.E.RemoveAll(x=>x.Id==e.Id); D.E.Add(e); AppendEmotion(e); n++;
@@ -2929,7 +2935,7 @@ static class App{
 			if((a=d["emoDel"] as JArray)!=null) foreach(JToken jt in a) if(ApplyDel((string)jt,D.E,x=>x.Id,RecEmoDel)) n++;
 			if((a=d["noi"] as JArray)!=null) foreach(JToken jt in a){
 				NoiseEntry ne=jt.ToObject<NoiseEntry>();
-				if(string.IsNullOrEmpty(ne.Id)||ne.T==default(DateTime)) continue;
+				if(!GoodId(ne.Id)||ne.T==default(DateTime)) continue;
 				NoiseEntry ex=D.N.FirstOrDefault(x=>x.Id==ne.Id);
 				if(ex!=null&&NoiHash(ex)==NoiHash(ne)) continue;
 				D.N.RemoveAll(x=>x.Id==ne.Id); D.N.Add(ne); AppendNoise(ne); n++;
@@ -2937,7 +2943,7 @@ static class App{
 			if((a=d["noiDel"] as JArray)!=null) foreach(JToken jt in a) if(ApplyDel((string)jt,D.N,x=>x.Id,RecNoiDel)) n++;
 			if((a=d["sleep"] as JArray)!=null) foreach(JToken jt in a){
 				SleepEntry se=jt.ToObject<SleepEntry>();
-				if(string.IsNullOrEmpty(se.Id)||se.T==default(DateTime)) continue;
+				if(!GoodId(se.Id)||se.T==default(DateTime)) continue;
 				SleepEntry ex=D.S.FirstOrDefault(x=>x.Id==se.Id);
 				if(ex!=null&&SleepHash(ex)==SleepHash(se)) continue;
 				D.S.RemoveAll(x=>x.Id==se.Id); D.S.Add(se); AppendSleep(se); n++;
@@ -2945,7 +2951,7 @@ static class App{
 			if((a=d["sleepDel"] as JArray)!=null) foreach(JToken jt in a) if(ApplyDel((string)jt,D.S,x=>x.Id,RecSleepDel)) n++;
 			if((a=d["medtake"] as JArray)!=null) foreach(JToken jt in a){
 				MedTakeEntry mt=jt.ToObject<MedTakeEntry>();
-				if(string.IsNullOrEmpty(mt.Id)||mt.T==default(DateTime)) continue;
+				if(!GoodId(mt.Id)||mt.T==default(DateTime)) continue;
 				MedTakeEntry ex=D.MedTakes.FirstOrDefault(x=>x.Id==mt.Id);
 				if(ex!=null&&MtHash(ex)==MtHash(mt)) continue;
 				D.MedTakes.RemoveAll(x=>x.Id==mt.Id); D.MedTakes.Add(mt); AppendMedTake(mt); n++;
@@ -2954,7 +2960,8 @@ static class App{
 			return n;
 		}
 		static bool ApplyDel<T>(string id,List<T> list,Func<T,string> getid,byte delType){
-			if(string.IsNullOrWhiteSpace(id)) return false;
+			Guid gd;
+			if(!Guid.TryParse(id,out gd)) return false;
 			bool present=list.Any(x=>getid(x)==id);
 			lock(DeadLk){ if(!present&&Dead.Contains(id)) return false; }
 			list.RemoveAll(x=>getid(x)==id);
