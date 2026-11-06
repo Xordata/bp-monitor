@@ -47,6 +47,10 @@
     <None Update="help.html">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Update="i18n.js">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="lang\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

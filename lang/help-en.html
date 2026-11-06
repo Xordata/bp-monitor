@@ -1,0 +1,160 @@
+<header><div class="wrap"><b>🩺 Blood Pressure Diary</b><span>User Manual</span><span style="flex:1"></span><a href="/">← Back to diary</a></div></header>
+<div class="wrap">
+
+<p>This manual is identical for both interfaces: <span class="tag desk">💻 app</span> — a program on your computer (address <code>localhost:8090</code>), <span class="tag web">🌐 web</span> — the site <code>bp.xor.world</code>. Anything not marked with an icon works the same in both.</p>
+
+<div class="card"><b>Contents</b>
+<div class="toc"><ol>
+<li><a href="#s1">What this is and the two interfaces</a></li>
+<li><a href="#s2">Getting started</a></li>
+<li><a href="#s3">Measuring blood pressure</a></li>
+<li><a href="#s4">History and charts</a></li>
+<li><a href="#s5">Diary: emotions, noise, sleep</a></li>
+<li><a href="#s6">Medications</a></li>
+<li><a href="#s7">Reminders</a></li>
+<li><a href="#s8">Phone: web app and notifications</a></li>
+<li><a href="#s9">Neural network and forecast</a></li>
+<li><a href="#s10">Weather and geomagnetic conditions</a></li>
+<li><a href="#s11">Settings</a></li>
+<li><a href="#s12">Sync 💻↔🌐</a></li>
+<li><a href="#s13">Export, doctor's report, backups</a></li>
+<li><a href="#s14">Frequently asked questions</a></li>
+</ol></div></div>
+
+<h2 id="s1">1. What this is and the two interfaces</h2>
+<p>An electronic blood pressure diary: measurements, a symptom diary, medications and reminders. A personal neural network learns from your data and explains the blood pressure forecast (reaction to weather, medications, sleep deprivation).</p>
+<table>
+<tr><th></th><th><span class="tag desk">💻 App</span></th><th><span class="tag web">🌐 Web bp.xor.world</span></th></tr>
+<tr><td>Where it runs</td><td>on your computer, the interface opens in a browser at <code>localhost:8090</code></td><td>in any browser from anywhere in the world, login with email and password</td></tr>
+<tr><td>Data</td><td>stored in a folder next to the program</td><td>stored on the server, one account per person</td></tr>
+<tr><td>Reminder sound</td><td>Windows system sound, always works</td><td>sound in the tab + browser push notifications</td></tr>
+<tr><td>Special features</td><td>port configuration, sync with the web</td><td>devices and tokens, quick card "/q", install on your phone</td></tr>
+</table>
+<p>You can keep your data in both places at once and synchronize them (section 12).</p>
+
+<h2 id="s2">2. Getting started</h2>
+<h3><span class="tag desk">💻 App</span></h3>
+<ol>
+<li>Download the installer <b>BpMonitorSetup.exe</b> (on the site — the "⬇ Desktop version" button in the "Devices" section, or "⬇ Desktop version" on bp.xor.world) and run it — reinstalling does not touch your data.</li>
+<li>After launch, a ❤ icon appears in the system tray and the interface opens in your browser. If the browser did not open — double-click the tray icon.</li>
+<li>Go to "Settings → User" and enter your date of birth and gender — the model uses them as features.</li>
+<li>In "Settings → General", check your city coordinates (needed for the weather).</li>
+</ol>
+<h3><span class="tag web">🌐 Web</span></h3>
+<ol>
+<li>Open <code>https://bp.xor.world</code> and sign in with your email (an account is created automatically on first login; the password is your email password).</li>
+<li>Then — the same "Settings → User" and city coordinates.</li>
+</ol>
+
+<h2 id="s3">3. Measuring blood pressure</h2>
+<ol>
+<li>Sit with your arm on the table and rest for 5 minutes. Take a measurement with your tonometer.</li>
+<li>Click <b>⚡ measure</b> (top right). The current time is filled in automatically — you can adjust it.</li>
+<li>Enter the systolic/diastolic pressure and pulse. Check off the medications you took (if any) and add a note.</li>
+<li>The weather, geomagnetic conditions and diary entries for that time are picked up automatically.</li>
+</ol>
+<p><span class="tag web">🌐 Web</span> There is a quick card <b>/q</b> (the "⚡ quick" button) — three fields and nothing else, convenient from a phone.</p>
+<p>Any measurement can be edited: open it from the "History" tab — editing keeps a change history.</p>
+
+<h2 id="s4">4. History and charts</h2>
+<ul>
+<li>The <b>History</b> tab — a table of measurements (newest on top) and a log. The "Show more" button loads older entries.</li>
+<li>Charts: pressure/pulse over time, dot coloring by emotion. The date filter is above the chart.</li>
+<li>"Doctor's report" — see section 13.</li>
+</ul>
+
+<h2 id="s5">5. Diary: emotions, noise, sleep</h2>
+<p>Three short entries help the model understand <i>why</i> your pressure changed:</p>
+<ul>
+<li><b>Emotion</b> — from −10 (terrible) to +10 (excellent);</li>
+<li><b>Noise/events</b> — what interfered (coffee, stress, physical exertion…);</li>
+<li><b>Sleep</b> — hours and quality (1–10).</li>
+</ul>
+<p>An entry made within ~12 hours before a measurement (or within 10 minutes after it) is linked to it automatically. Fill them in at least on days when you feel unwell — the model will appreciate it.</p>
+
+<h2 id="s6">6. Medications</h2>
+<ul>
+<li><b>List</b> — the medications you take. They appear as checkboxes in a measurement and are used in the model's forecast (time of intake and half-life are taken into account).</li>
+<li><b>Reminders</b> — intake times for each medication; a reminder arrives in the tray (<span class="tag desk">💻</span>) or as a push (<span class="tag web">🌐</span>).</li>
+<li><b>Intake log</b> — the "✓ Take" button records the fact of intake (more accurate for the model than the checkbox next to a measurement).</li>
+<li><b>PK reference</b> — for each medication you can set the half-life/duration of action (by default — taken from a medical reference).</li>
+</ul>
+
+<h2 id="s7">7. Reminders</h2>
+<p>The <b>Reminders</b> tab — a list with quick inline editing. Modes:</p>
+<ul>
+<li><b>every day</b> — at the specified time;</li>
+<li><b>on weekdays</b> — check boxes Mon–Sun;</li>
+<li><b>every N hours</b> — e.g. "every 8 hours" from the moment it was enabled.</li>
+</ul>
+<p>"Remind N min ahead" — an early warning. When it goes off, the melody <code>alarm.mp3</code> plays; to stop it — the "⏹ sound" button in the header or a click on the tray icon.</p>
+<p><span class="tag web">🌐 Web</span> If a tab is open — it will ring (once, without duplicating across other tabs). If there are no open tabs — a push notification arrives (section 8). If the browser blocks sound until a click — just click anywhere on the page once.</p>
+
+<h2 id="s8">8. Phone: web app and notifications <span class="tag web">🌐</span></h2>
+<h3>Install as an app</h3>
+<ol>
+<li>Open bp.xor.world in Chrome (Android) or Safari (iOS) and sign in.</li>
+<li>"Settings → Devices → 📲 Install on phone" (or the browser menu "Install app" / "Add to Home Screen").</li>
+<li>After installation the site opens as a regular app, without an address bar.</li>
+</ol>
+<h3>Enable push notifications</h3>
+<ol>
+<li>In "Settings", in the "Notifications" block, click <b>Enable</b> and allow the browser's prompt.</li>
+<li>The button shows the status of this particular browser; "📡 Delivery test" sends a test to all subscribed devices.</li>
+<li>On iPhone, push works only from the Safari PWA installed on the device.</li>
+</ol>
+<p>Notifications arrive for: reminders (when no tabs are open), medication reminders, and model warnings.</p>
+
+<h2 id="s9">9. Neural network and forecast</h2>
+<p>The <b>Model</b> tab. The neural network learns to predict your blood pressure from: time of day, weather (pressure, temperature, humidity, geomagnetic disturbances), emotions/noise/sleep, medications (taking intake time into account), as well as <b>gender and age</b> at the time of measurement.</p>
+<ul>
+<li><b>Train</b> — regular training; <b>Genetics</b> — more thorough (background task, ~half a minute); <b>Tune</b> — automatic model-size selection; <b>Validate</b> — an honest evaluation on the held-out most recent measurements (MAE in mmHg) and the "contribution" of features.</li>
+<li>After any significant data change (new measurement, medication, weather) the model retrains on its own.</li>
+<li><b>Forecast</b> — the model is run over the hourly weather forecast and shows when a departure from your normal range is expected; at that point a "in ~N hours" warning also arrives.</li>
+<li>The <b>Kp</b> badge — the forecast of geomagnetic disturbances (≥5 — magnetic storms; sensitive people react with blood pressure changes).</li>
+</ul>
+<div class="note">The model is an assistant, not a diagnosis. It explains patterns in your data but does not replace a doctor.</div>
+
+<h2 id="s10">10. Weather and geomagnetic conditions</h2>
+<p>Below the header the current weather and Kp are shown — they are filled into every measurement automatically (source — the Norwegian meteorological service for the app and the site, GFZ/NOAA — for Kp). Missing weather for past days can be backfilled: the "Model" tab → "Backfill weather" (<span class="tag desk">💻</span>) — the archive is pulled in by measurement dates.</p>
+
+<h2 id="s11">11. Settings</h2>
+<p>The <b>Settings</b> tab — cards; "Edit" opens an editing window, everything is saved immediately.</p>
+<ul>
+<li><b>Normal range</b> — your systolic/diastolic thresholds (for highlighting, forecasts and the report).</li>
+<li><b>User</b> — name, date of birth, gender (important for the model!).</li>
+<li><b>General</b> — city coordinates, weather polling interval; <span class="tag desk">💻</span> web interface port (changing it requires a restart).</li>
+<li><span class="tag web">🌐</span> <b>Time zone</b> — for reminders and charts.</li>
+<li><span class="tag web">🌐</span> <b>Devices</b> — sync tokens for the app/scripts, the install-on-phone button, "⬇ Desktop version".</li>
+<li><span class="tag desk">💻</span> <b>Synchronization</b> — section 12.</li>
+<li><b>Model</b> — fine-tuning parameters of the neural network (usually no need to change).</li>
+</ul>
+<p>The dark theme is enabled automatically based on the system setting.</p>
+
+<h2 id="s12">12. Syncing the app with the site <span class="tag desk">💻</span>↔<span class="tag web">🌐</span></h2>
+<p>To keep the diary on both your computer and your phone without manual transfers:</p>
+<ol>
+<li><span class="tag web">🌐</span> On the site: "Settings → Devices → Create token". Copy the token (it is shown only once).</li>
+<li><span class="tag desk">💻</span> In the app: "Settings → Synchronization": enable it, paste the token, save. After that, once a minute (or immediately after a new measurement) changes go to the server and come back.</li>
+<li>Which side is "master" in settings (who dictates the configuration to whom) is also chosen in this block: "desktop" / "server" / "do not synchronize".</li>
+</ol>
+<p>The status is visible in the same block ("push +N / pull +N"). The "invalid token" error — create a new token.</p>
+
+<h2 id="s13">13. Export, doctor's report, backups</h2>
+<ul>
+<li><b>Doctor's report</b> ("History" → "Doctor's report", CSV or xlsx) — a per-day summary: measurements, medication intake, Kp, emotions, noise, sleep. The file opens in Excel.</li>
+<li><b>Export all data</b> — a single JSON file with the entire diary (for moving to another computer: use "Import" at the new location). Before importing, an automatic backup snapshot is taken.</li>
+<li><span class="tag desk">💻</span> The app itself keeps daily backups in the <code>backups\</code> folder next to the program (the last 30 days).</li>
+<li><span class="tag web">🌐</span> Server data is backed up by the site administrator.</li>
+</ul>
+
+<h2 id="s14">14. Frequently asked questions</h2>
+<div class="card"><b>The reminder rang twice / did not ring</b><br>Twice — check whether several tabs and the app are open at the same time (tabs coordinate among themselves, the app rings on its own). Did not ring on the phone — the browser blocked sound before the first click: open the tab and click; a push arrives only if the tabs are closed and the subscription is enabled ("📡 Delivery test" in settings).</div>
+<div class="card"><b>Push does not arrive</b><br>"Settings → Notifications" → "Enable" → allow the prompt. Seeing an "Disable" button instead of "Enable" on an empty phone? Reload the page — the button now applies to the current browser. On iOS — Safari only + install to the "Home" screen.</div>
+<div class="card"><b>Weather was not filled into a measurement</b><br>Check the coordinates in settings and internet access. For old measurements — "Backfill weather".</div>
+<div class="card"><b>Synchronization reports "Task canceled"</b><br>No connection to the server (or a proxy/VPN is interfering). Check whether bp.xor.world opens in the browser on this computer, then wait for the next cycle — the status will update.</div>
+<div class="card"><b>Forgot my password (web)</b><br>The password is your email password (the mail server itself is the verification). Reset the password using your email provider's tools.</div>
+<div class="card"><b>Where are my data?</b><br><span class="tag desk">💻</span> in the folder next to <code>BpMonitor.exe</code> (<code>data\</code>), never sent anywhere except the synchronization you yourself enabled. <span class="tag web">🌐</span> on the bp.xor.world server, accessible only under your account.</div>
+
+<footer>Blood Pressure Diary · a single manual for the app and the bp.xor.world site · <a class="back" href="/">back to diary</a></footer>
+</div>

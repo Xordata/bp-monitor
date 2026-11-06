@@ -61,11 +61,40 @@ public class NnCfg{
 	public int Hidden2=16;// второй скрытый слой
 	public int Epochs=30;
 }
+// Языковые пакеты (десктоп): <каталог exe>/lang/<code>.json — плоский JSON «русский текст -> перевод».
+static class LangPacks{
+	class Pack{ public DateTime Mtime; public Dictionary<string,string> Map=new Dictionary<string,string>(); }
+	static readonly Dictionary<string,Pack> _cache=new Dictionary<string,Pack>(StringComparer.OrdinalIgnoreCase);
+	public static string Tr(string lang,string ru){ return Tr(lang,ru,null); }
+	public static string Tr(string lang,string ru,string dir){
+		if(string.IsNullOrEmpty(lang)||lang=="ru"||string.IsNullOrEmpty(ru)) return ru;
+		var map=Map(lang,dir??AppDomain.CurrentDomain.BaseDirectory);
+		if(map!=null&&map.TryGetValue(ru,out string t)&&!string.IsNullOrEmpty(t)) return t;
+		return ru;
+	}
+	static Dictionary<string,string> Map(string code,string dir){
+		if(code==null||!System.Text.RegularExpressions.Regex.IsMatch(code,"^[a-z]{2}$")) return null;
+		string f=Path.Combine(dir,"lang",code+".json");
+		if(!File.Exists(f)) return null;
+		lock(_cache){
+			try{
+				DateTime mt=File.GetLastWriteTimeUtc(f);
+				if(_cache.TryGetValue(code,out Pack p)&&p.Mtime==mt) return p.Map;
+				var map=new Dictionary<string,string>();
+				JObject jo=JObject.Parse(File.ReadAllText(f));
+				foreach(var kv in jo.Properties()) map[kv.Name]=(string)kv.Value??"";
+				_cache[code]=new Pack{Mtime=mt,Map=map};
+				return map;
+			} catch { return null; }
+		}
+	}
+}
 public class Config{
 	public int Port=8090;
 	public bool OpenBrowserOnStart=true;// false — не открывать браузер при запуске (двойной клик по трею откроет)
 	public double Lat=55.75,Lon=37.62;
 	public string WxSource="metno";// "metno" — api.met.no (open-meteo заблокирован провайдером без Tor/прокси), "openmeteo" — прежний источник
+	public string Lang="";// язык интерфейса (ru|en|de|fr|pt|es|zh|ja); пакеты <exe>/lang/<code>.json; пусто = окно выбора
 	public string WxContact="admin@example.org";// контакт для User-Agent met.no (политика мет.службы требует реальный e-mail; в config.json рядом с exe)
 	public int PollMin=15;// период опроса погоды, мин
 	public string AlarmFile="alarm.mp3";// mp3 рядом с exe
@@ -1596,13 +1625,13 @@ static class App{
 				Fired.Add(key);
 				if(a.Mode=="everyN"&&string.IsNullOrWhiteSpace(a.Anchor)){a.Anchor=today;try{SaveCfg();}catch{}}// фиксируем старт цикла «каждые N дней»
 				StartAlarm();
-				ni.ShowBalloonTip(4000,"BpMonitor","Будильник: "+(a.Label??a.Time),ToolTipIcon.Info);
+				ni.ShowBalloonTip(4000,"BpMonitor",LangPacks.Tr(Cfg.Lang,"Будильник:")+" "+(a.Label??a.Time),ToolTipIcon.Info);
 			}
 			if(Cfg.AlarmAheadMin<=0)continue;
 			DateTime ahead=target-TimeSpan.FromMinutes(Cfg.AlarmAheadMin);
 			if(!Announced.Contains(key)&&now>=ahead&&now<target){
 				Announced.Add(key);
-				ni.ShowBalloonTip(4000,"BpMonitor","Через "+Cfg.AlarmAheadMin+" мин будильник: "+(a.Label??a.Time),ToolTipIcon.Info);
+				ni.ShowBalloonTip(4000,"BpMonitor",LangPacks.Tr(Cfg.Lang,"Через")+" "+Cfg.AlarmAheadMin+" "+LangPacks.Tr(Cfg.Lang,"мин будильник:")+" "+(a.Label??a.Time),ToolTipIcon.Info);
 			}
 		}
 	}
@@ -1627,7 +1656,7 @@ static class App{
 				DateTime target=now.Date.AddHours(hh).AddMinutes(mm);
 				if(now>=target&&now-target<=TimeSpan.FromMinutes(30)){// окно догона, как у будильников
 					MedFired.Add(key);
-					ni?.ShowBalloonTip(6000,"BpMonitor — лекарства","Пора принять: "+med+". Отметьте приём во вкладке «Лекарства».",ToolTipIcon.Info);
+					ni?.ShowBalloonTip(6000,"BpMonitor — "+LangPacks.Tr(Cfg.Lang,"Лекарства"),LangPacks.Tr(Cfg.Lang,"Пора принять: ")+med+". "+LangPacks.Tr(Cfg.Lang,"Отметьте приём во вкладке «Лекарства»."),ToolTipIcon.Info);
 				}
 			}
 		}
@@ -2052,6 +2081,10 @@ static class App{
 			}
 			lock(Sync){
 			string path=ctx.Request.Url.AbsolutePath;
+			// i18n-статика из каталога exe: /i18n.js, /lang/xx.json, /help/<code>
+			if(ctx.Request.HttpMethod=="GET"&&path=="/i18n.js"){ string fj=Path.Combine(ExeDir,"i18n.js"); if(File.Exists(fj)){Respond(ctx.Response,200,"text/javascript; charset=utf-8",File.ReadAllBytes(fj));return;} }
+			if(ctx.Request.HttpMethod=="GET"&&System.Text.RegularExpressions.Regex.IsMatch(path,"^/lang/[a-z]{2}[.]json$")){ string fl=Path.Combine(ExeDir,path.Substring(1)); if(File.Exists(fl)){Respond(ctx.Response,200,"application/json; charset=utf-8",File.ReadAllBytes(fl));return;} }
+			if(ctx.Request.HttpMethod=="GET"&&System.Text.RegularExpressions.Regex.IsMatch(path,"^/help/[a-z]{2}$")){ string fh=Path.Combine(ExeDir,"lang","help-"+path.Substring(6)+".html"); if(File.Exists(fh)){Respond(ctx.Response,200,"text/html; charset=utf-8",File.ReadAllBytes(fh));return;} }
 			if(req.HttpMethod=="GET"){
 				switch(path){
 					case"/":
@@ -2629,6 +2662,15 @@ static class App{
 			if(SyncLayer.ApplyDelta(new JObject{["measDel"]=new JArray(new JValue(id1))})!=1||D.M.Any(x=>x.Id==id1)) throw new Exception("тумстоун не применён");
 			if(SyncLayer.ApplyDelta(new JObject{["measDel"]=new JArray(new JValue(id1))})!=0) throw new Exception("echo тумстоуна не подавлен");
 			D=keep;
+		});
+		check("i18n: LangPacks.Tr (пакет/fallback)",()=>{
+			string dir=Path.Combine(Path.GetTempPath(),"bpself_"+Guid.NewGuid().ToString("N"));
+			Directory.CreateDirectory(Path.Combine(dir,"lang"));
+			File.WriteAllText(Path.Combine(dir,"lang","de.json"),"{\"Сохранено\":\"Gespeichert\"}");
+			if(LangPacks.Tr("de","Сохранено",dir)!="Gespeichert") throw new Exception("перевод не взят");
+			if(LangPacks.Tr("de","чужое",dir)!="чужое") throw new Exception("fallback ru");
+			if(LangPacks.Tr("ru","Сохранено",dir)!="Сохранено") throw new Exception("ru без перевода");
+			Directory.Delete(dir,true);
 		});
 		check("Sync: курсоры sync.json",()=>{
 			SyncLayer.C.pushedSeq=123; SyncLayer.C.pulledSeq=456; SyncLayer.C.serverGen=7;

@@ -1,0 +1,161 @@
+<header><div class="wrap"><b>🩺 Blutdruck-Tagebuch</b><span>Anleitung</span><span style="flex:1"></span><a href="/">← Zum Tagebuch</a></div></header>
+<div class="wrap">
+
+<p>Diese Anleitung gilt für beide Oberflächen: <span class="tag desk">💻 Anwendung</span> — ein Programm auf dem Computer (Adresse <code>localhost:8090</code>), <span class="tag web">🌐 Web</span> — die Website <code>bp.xor.world</code>. Alles, was nicht mit einem Symbol gekennzeichnet ist, funktioniert auf beiden gleich.</p>
+
+<div class="card"><b>Inhalt</b>
+<div class="toc"><ol>
+<li><a href="#s1">Was das ist und die zwei Oberflächen</a></li>
+<li><a href="#s2">Womit anfangen</a></li>
+<li><a href="#s3">Blutdruck messen</a></li>
+<li><a href="#s4">Verlauf und Diagramme</a></li>
+<li><a href="#s5">Tagebuch: Emotionen, Lärm, Schlaf</a></li>
+<li><a href="#s6">Medikamente</a></li>
+<li><a href="#s7">Erinnerungen</a></li>
+<li><a href="#s8">Telefon: Web-App und Benachrichtigungen</a></li>
+<li><a href="#s9">Neuronales Modell und Prognose</a></li>
+<li><a href="#s10">Wetter und geomagnetische Lage</a></li>
+<li><a href="#s11">Einstellungen</a></li>
+<li><a href="#s12">Synchronisation 💻↔🌐</a></li>
+<li><a href="#s13">Export, Arztbericht, Sicherungskopien</a></li>
+<li><a href="#s14">Häufige Fragen</a></li>
+</ol></div></div>
+
+<h2 id="s1">1. Was das ist und die zwei Oberflächen</h2>
+<p>Elektronisches Blutdruck-Tagebuch: Messungen, Befindlichkeits-Tagebuch, Medikamente und Erinnerungen. Ein persönliches neuronales Modell lernt aus Ihren Daten und erklärt die Blutdruckprognose (Reaktion auf Wetter, Medikamente, Schlafmangel).</p>
+<table>
+<tr><th></th><th><span class="tag desk">💻 Anwendung</span></th><th><span class="tag web">🌐 Web bp.xor.world</span></th></tr>
+<tr><td>Wo es läuft</td><td>auf Ihrem Computer, die Oberfläche öffnet sich im Browser unter der Adresse <code>localhost:8090</code></td><td>in jedem Browser von überall, Anmeldung per E-Mail und Passwort</td></tr>
+<tr><td>Daten</td><td>werden in einem Ordner neben dem Programm gespeichert</td><td>werden auf dem Server gespeichert, ein Konto pro Person</td></tr>
+<tr><td>Erinnerungssound</td><td>Systemton von Windows, funktioniert immer</td><td>Ton im Tab + Push-Benachrichtigungen des Browsers</td></tr>
+<tr><td>Besonderheiten</td><td>Port-Einstellung, Synchronisation mit dem Web</td><td>Geräte und Tokens, Schnellkarte „/q“, Installation auf dem Telefon</td></tr>
+</table>
+<p>Die Daten können gleichzeitig an beiden Orten gehalten und synchronisiert werden (Abschnitt 12).</p>
+
+<h2 id="s2">2. Womit anfangen</h2>
+<h3><span class="tag desk">💻 Anwendung</span></h3>
+<ol>
+<li>Laden Sie das Installationsprogramm <b>BpMonitorSetup.exe</b> herunter (auf der Website — die Schaltfläche „⬇ Desktop-Version“ im Abschnitt „Geräte“ bzw. „⬇ Desktop-Version“ auf bp.xor.world) und starten Sie es — bei einer Neuinstallation werden die Daten nicht angetastet.</li>
+<li>Nach dem Start erscheint im Tray ein Symbol ❤, und im Browser öffnet sich die Oberfläche. Falls sich der Browser nicht geöffnet hat — doppeltes Klicken auf das Symbol im Tray.</li>
+<li>Gehen Sie zu „Einstellungen → Benutzer“ und geben Sie Geburtsdatum und Geschlecht an — das Modell nutzt sie als Merkmale.</li>
+<li>Prüfen Sie unter „Einstellungen → Allgemein“ die Koordinaten Ihrer Stadt (für das Wetter erforderlich).</li>
+</ol>
+<h3><span class="tag web">🌐 Web</span></h3>
+<ol>
+<li>Öffnen Sie <code>https://bp.xor.world</code> und melden Sie sich mit Ihrer E-Mail an (das Konto wird beim ersten Login automatisch erstellt; das Passwort ist das Ihrer E-Mail).</li>
+<li>Danach folgen dieselben Schritte: „Einstellungen → Benutzer“ und die Koordinaten.</li>
+</ol>
+
+<h2 id="s3">3. Blutdruck messen</h2>
+<ol>
+<li>Im Sitzen, Arm auf dem Tisch, 5 Minuten ausruhen. Mit dem Tonometer messen.</li>
+<li>Klicken Sie auf <b>⚡ Messung</b> (oben rechts). Die Zeit wird automatisch eingetragen — sie kann korrigiert werden.</li>
+<li>Geben Sie systolischen/diastolischen Wert und Puls ein. Markieren Sie die eingenommenen Medikamente (falls welche genommen wurden) und fügen Sie eine Notiz hinzu.</li>
+<li>Wetter, geomagnetische Lage und Tagebuchdaten für diesen Zeitraum werden automatisch übernommen.</li>
+</ol>
+<p><span class="tag web">🌐 Web</span> Es gibt eine Schnellkarte <b>/q</b> (Schaltfläche „⚡ schnell“) — drei Felder ohne alles Weitere, praktisch vom Telefon aus.</p>
+<p>Jede Messung kann nachträglich bearbeitet werden: öffnen Sie sie im Tab „Verlauf“ — die Bearbeitung speichert die Änderungshistorie.</p>
+
+<h2 id="s4">4. Verlauf und Diagramme</h2>
+<ul>
+<li>Der Tab <b>Verlauf</b> — eine Tabelle der Messungen (neueste oben) und ein Protokoll. Die Schaltfläche „Mehr anzeigen“ lädt ältere Einträge nach.</li>
+<li>Diagramme: Blutdruck/Puls über die Zeit, punktwweise Einfärbung nach Emotionen. Datumsfilter — über dem Diagramm.</li>
+<li>„Arztbericht“ — siehe Abschnitt 13.</li>
+</ul>
+
+<h2 id="s5">5. Tagebuch: Emotionen, Lärm, Schlaf</h2>
+<p>Drei kurze Einträge helfen dem Modell zu verstehen, <i>warum</i> sich der Blutdruck verändert hat:</p>
+<ul>
+<li><b>Emotion</b> — von −10 (furchtbar) bis +10 (hervorragend);</li>
+<li><b>Lärm/Ereignisse</b> — was gestört hat (Kaffee, Stress, körperliche Belastung…);</li>
+<li><b>Schlaf</b> — Stunden und Qualität (1–10).</li>
+</ul>
+<p>Ein Eintrag, der innerhalb von ~12 Stunden vor der Messung (oder innerhalb von 10 Minuten danach) gemacht wurde, wird automatisch mit ihr verknüpft. Füllen Sie sie zumindest an Tagen mit schlechtem Befinden aus — das Modell wird es Ihnen danken.</p>
+
+<h2 id="s6">6. Medikamente</h2>
+<ul>
+<li><b>Liste</b> — die Präparate, die Sie einnehmen. Sie werden bei der Messung als Checkboxen angezeigt und fließen in die Prognose des Modells ein (Einnahmezeitpunkt und Halbwertszeit werden berücksichtigt).</li>
+<li><b>Erinnerungen</b> — Einnahmezeiten für jedes Präparat; im Tray (<span class="tag desk">💻</span>) oder per Push (<span class="tag web">🌐</span>) kommt eine Erinnerung.</li>
+<li><b>Einnahmeprotokoll</b> — die Schaltfläche „✓ Einnehmen“ erfasst den tatsächlichen Einnahmefakt (für das Modell genauer als die Checkbox bei der Messung).</li>
+<li><b>PK-Referenz</b> — für jedes Präparat können Halbwertszeit/Wirkdauer festgelegt werden (standardmäßig aus der medizinischen Referenz).</li>
+</ul>
+
+<h2 id="s7">7. Erinnerungen</h2>
+<p>Der Tab <b>Erinnerungen</b> — eine Liste mit schneller Bearbeitung direkt in der Zeile. Modi:</p>
+<ul>
+<li><b>jeden Tag</b> — zur angegebenen Zeit;</li>
+<li><b>nach Wochentagen</b> — Häkchen Mo–So;</li>
+<li><b>alle N Stunden</b> — zum Beispiel „alle 8 Stunden“ ab dem Zeitpunkt der Aktivierung.</li>
+</ul>
+<p>„N Min. vorher erinnern“ — eine Vorwarnung. Zum Auslösezeitpunkt spielt die Melodie <code>alarm.mp3</code>; stoppen — über die Schaltfläche „⏹ Ton“ in der Kopfzeile oder durch Klick auf das Symbol im Tray.</p>
+<p><span class="tag web">🌐 Web</span> Falls ein Tab geöffnet ist — läutet er (einmal, ohne Duplizierung mit anderen Tabs). Falls keine Tabs offen sind — kommt eine Push-Benachrichtigung (Abschnitt 8). Falls der Browser ohne Klick keinen Ton abspielt — klicken Sie einfach einmal auf der Seite.</p>
+
+<h2 id="s8">8. Telefon: Web-App und Benachrichtigungen <span class="tag web">🌐</span></h2>
+<h3>Als App installieren</h3>
+<ol>
+<li>Öffnen Sie bp.xor.world in Chrome (Android) oder Safari (iOS) und melden Sie sich an.</li>
+<li>„Einstellungen → Geräte → 📲 Auf dem Telefon installieren“ (oder im Browsermenü „App installieren“ / „Zum Startbildschirm“).</li>
+<li>Nach der Installation öffnet sich die Website wie eine normale App, ohne Adressleiste.</li>
+</ol>
+<h3>Push-Benachrichtigungen aktivieren</h3>
+<ol>
+<li>Klicken Sie in den „Einstellungen“ im Block „Benachrichtigungen“ auf <b>Aktivieren</b> und erlauben Sie die Browseranfrage.</li>
+<li>Die Schaltfläche zeigt den Zustand genau dieses Browsers an; „📡 Zustelltest“ schickt einen Testversuch an alle abonnierten Geräte.</li>
+<li>Auf dem iPhone funktioniert Push nur aus der installierten Safari-PWA.</li>
+</ol>
+<p>Benachrichtigungen kommen für: Erinnerungen (wenn keine offenen Tabs existieren), Medikamentenerinnerungen und Warnungen des Modells.</p>
+
+<h2 id="s9">9. Neuronales Modell und Prognose</h2>
+<p>Der Tab <b>Modell</b>. Das neuronale Modell lernt, Ihren Blutdruck vorherzusagen anhand von: Tageszeit, Wetter (Luftdruck, Temperatur, Luftfeuchtigkeit, geomagnetische Störungen), Emotionen/Lärm/Schlaf, Medikamenten (unter Berücksichtigung der Einnahmezeit) sowie <b>Geschlecht und Alter</b> zum Messzeitpunkt.</p>
+<ul>
+<li><b>Trainieren</b> — normales Training; <b>Genetik</b> — gründlicher (Hintergrundaufgabe, ~eine halbe Minute); <b>Anpassen</b> — automatische Wahl der Modellgröße; <b>Prüfen</b> — ehrliche Bewertung auf zurückgehaltenen letzten Messungen (MAE in mmHg) und „Beitrag“ der Merkmale.</li>
+<li>Nach jeder wesentlichen Änderung der Daten (neue Messung, Medikament, Wetter) erfolgt ein Nachtraining automatisch.</li>
+<li><b>Prognose</b> — das Modell wird über den stündlichen Wetterbericht laufen gelassen und zeigt, wann eine Überschreitung Ihrer Norm erwartet wird; dann kommt auch die Warnung „in ~N Stunden“.</li>
+<li>Das Symbol <b>Kp</b> — die Prognose geomagnetischer Störungen (≥5 — Magnetstürme, Sensible reagieren mit Blutdruckänderungen).</li>
+</ul>
+<div class="note">Das Modell ist ein Assistent, keine Diagnose. Es erklärt Gesetzmäßigkeiten Ihrer Daten, ersetzt aber keinen Arzt.</div>
+
+<h2 id="s10">10. Wetter und geomagnetische Lage</h2>
+<p>Unter der Kopfzeile werden das aktuelle Wetter und Kp angezeigt — sie werden automatisch in jede Messung eingetragen (Quelle — der norwegische Wetterdienst für Anwendung und Website, GFZ/NOAA — für Kp). Fehlendes Wetter der vergangenen Tage kann nachgetragen werden: Tab „Modell“ → „Wetter nachziehen“ (<span class="tag desk">💻</span>) — das Archiv wird anhand der Messdaten-Daten nachgeladen.</p>
+
+<h2 id="s11">11. Einstellungen</h2>
+<p>Der Tab <b>Einstellungen</b> — Karten; „Bearbeiten“ öffnet ein Bearbeitungsfenster, alles wird sofort gespeichert.</p>
+<ul>
+<li><b>Norm</b> — Ihre Schwellenwerte für systolischen/diastolischen Wert (für Hervorhebungen, Prognosen und den Bericht).</li>
+<li><b>Benutzer</b> — Name, Geburtsdatum, Geschlecht (wichtig für das Modell!).</li>
+<li><b>Allgemein</b> — Koordinaten der Stadt, Abfrageintervall des Wetters; <span class="tag desk">💻</span> Port der Web-Oberfläche (eine Änderung erfordert einen Neustart).</li>
+<li><span class="tag web">🌐</span> <b>Zeitzone</b> — für Erinnerungen und Diagramme.</li>
+<li><span class="tag web">🌐</span> <b>Geräte</b> — Synchronisations-Tokens für Anwendung/Skripte, Schaltfläche zur Installation auf dem Telefon, „⬇ Desktop-Version“.</li>
+<li><span class="tag desk">💻</span> <b>Synchronisation</b> — Abschnitt 12.</li>
+<li><b>Modell</b> — Feinparameter des neuronalen Modells (normalerweise nicht zu ändern).</li>
+</ul>
+<p>Dunkles Design wird automatisch nach den Systemeinstellungen aktiviert.</p>
+
+<h2 id="s12">12. Synchronisation der Anwendung mit der Website <span class="tag desk">💻</span>↔<span class="tag web">🌐</span></h2>
+<p>Um das Tagebuch sowohl auf dem Computer als auch auf dem Telefon zu führen, ohne manuell zu übertragen:</p>
+<ol>
+<li><span class="tag web">🌐</span> Auf der Website: „Einstellungen → Geräte → Token erstellen“. Kopieren Sie das Token (es wird nur einmal angezeigt).</li>
+<li><span class="tag desk">💻</span> In der Anwendung: „Einstellungen → Synchronisation“: aktivieren, Token einfügen, speichern. Danach gehen die Änderungen einmal pro Minute (oder sofort nach einer neuen Messung) an den Server und kommen zurück.</li>
+<li>Wer in den Einstellungen „führend“ ist (wem die Konfiguration diktiert wird) — wird ebenfalls in diesem Block gewählt: „Desktop“ / „Server“ / „nicht synchronisieren“.</li>
+</ol>
+<p>Der Status ist in demselben Block sichtbar („push +N / pull +N“). Fehler „ungültiges Token“ — erstellen Sie das Token neu.</p>
+
+<h2 id="s13">13. Export, Arztbericht, Sicherungskopien</h2>
+<ul>
+<li><b>Arztbericht</b> („Verlauf“ → „Arztbericht“, CSV oder xlsx) — eine Tagesübersicht: Messungen, Medikamenteneinnahme, Kp, Emotionen, Lärm, Schlaf. Die Datei öffnet sich in Excel.</li>
+<li><b>Export aller Daten</b> — eine JSON-Datei mit dem gesamten Tagebuch (für die Übertragung auf einen anderen Computer: „Import“ am neuen Ort). Vor dem Import wird automatisch eine Sicherungskopie erstellt.</li>
+<li><span class="tag desk">💻</span> Die Anwendung speichert selbst tägliche Backups im Ordner <code>backups\</code> neben dem Programm (die letzten 30 Tage).</li>
+<li><span class="tag web">🌐</span> Die Serverdaten werden vom Website-Administrator sicherungskopiert.</li>
+</ul>
+
+<h2 id="s14">14. Häufige Fragen</h2>
+<div class="card"><b>Die Erinnerung ertönte zweimal / gar nicht</b><br>
+Zweimal — prüfen Sie, ob nicht mehrere Tabs und die Anwendung gleichzeitig geöffnet sind (die Tabs stimmen sich untereinander ab, die Anwendung läutet selbst). Kein Ton auf dem Telefon — der Browser erlaubte den Ton vor dem ersten Klick nicht: öffnen Sie den Tab und klicken Sie; Push kommt nur, wenn die Tabs geschlossen sind und das Abonnement aktiv ist („📡 Zustelltest“ in den Einstellungen).</div>
+<div class="card"><b>Push kommt nicht</b><br>„Einstellungen → Benachrichtigungen“ → „Aktivieren“ → erlauben Sie die Anfrage. Die Schaltfläche zeigt „Deaktivieren“ statt „Aktivieren“ bei leerem Telefon? Laden Sie die Seite neu — die Schaltfläche bezieht sich jetzt auf den aktuellen Browser. Auf iOS — nur Safari + Installation auf den Startbildschirm „Home“.</div>
+<div class="card"><b>Wetter wurde nicht in die Messung eingetragen</b><br>Prüfen Sie die Koordinaten in den Einstellungen und den Internetzugang. Für ältere Messungen — „Wetter nachziehen“.</div>
+<div class="card"><b>Die Synchronisation meldet „Aufgabe abgebrochen“</b><br>Keine Verbindung zum Server (oder ein Proxy/VPN stört). Prüfen Sie, ob bp.xor.world im Browser auf diesem Computer geöffnet wird, und warten Sie dann den nächsten Zyklus ab — der Status aktualisiert sich.</div>
+<div class="card"><b>Passwort vergessen (Web)</b><br>Das Passwort ist das Ihrer E-Mail (der Mailserver ist die Prüfung). Passwortzurücksetzung — über die Mittel Ihres E-Mail-Anbieters.</div>
+<div class="card"><b>Wo sind meine Daten?</b><br><span class="tag desk">💻</span> im Ordner neben <code>BpMonitor.exe</code> (<code>data\</code>), sie werden nirgendwohin gesendet, außer bei von Ihnen aktivierter Synchronisation. <span class="tag web">🌐</span> auf dem Server bp.xor.world, Zugriff — nur unter Ihrem Konto.</div>
+
+<footer>Blutdruck-Tagebuch · Anleitung gemeinsam für Anwendung und Website bp.xor.world · <a class="back" href="/">zurück zum Tagebuch</a></footer>
+</div>

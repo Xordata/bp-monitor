@@ -1,0 +1,161 @@
+<header><div class="wrap"><b>🩺 Journal de tension</b><span>Notice</span><span style="flex:1"></span><a href="/">← Retour au journal</a></div></header>
+<div class="wrap">
+
+<p>Cette notice est identique pour les deux interfaces : <span class="tag desk">💻 application</span> — le programme sur l'ordinateur (adresse <code>localhost:8090</code>), <span class="tag web">🌐 web</span> — le site <code>bp.xor.world</code>. Tout ce qui n'est pas marqué d'une icône fonctionne de la même façon dans les deux cas.</p>
+
+<div class="card"><b>Sommaire</b>
+<div class="toc"><ol>
+<li><a href="#s1">Ce que c'est et les deux interfaces</a></li>
+<li><a href="#s2">Par où commencer</a></li>
+<li><a href="#s3">Mesure de la tension artérielle</a></li>
+<li><a href="#s4">Historique et graphiques</a></li>
+<li><a href="#s5">Journal : émotions, bruit, sommeil</a></li>
+<li><a href="#s6">Médicaments</a></li>
+<li><a href="#s7">Rappels</a></li>
+<li><a href="#s8">Téléphone : application web et notifications</a></li>
+<li><a href="#s9">Réseau de neurones et prévision</a></li>
+<li><a href="#s10">Météo et conditions géomagnétiques</a></li>
+<li><a href="#s11">Paramètres</a></li>
+<li><a href="#s12">Synchronisation 💻↔🌐</a></li>
+<li><a href="#s13">Export, rapport pour le médecin, sauvegardes</a></li>
+<li><a href="#s14">Questions fréquentes</a></li>
+</ol></div></div>
+
+<h2 id="s1">1. Ce que c'est et les deux interfaces</h2>
+<p>Journal électronique de la tension artérielle : mesures, journal du bien-être, médicaments et rappels. Un réseau de neurones personnel apprend de vos données et explique la prévision de tension (réaction à la météo, aux médicaments, au manque de sommeil).</p>
+<table>
+<tr><th></th><th><span class="tag desk">💻 Application</span></th><th><span class="tag web">🌐 Web bp.xor.world</span></th></tr>
+<tr><td>Où ça fonctionne</td><td>sur votre ordinateur, l'interface s'ouvre dans le navigateur à l'adresse <code>localhost:8090</code></td><td>dans n'importe quel navigateur depuis n'importe où dans le monde, connexion par e-mail et mot de passe</td></tr>
+<tr><td>Données</td><td>conservées dans un dossier à côté du programme</td><td>conservées sur le serveur, un compte par personne</td></tr>
+<tr><td>Son du rappel</td><td>son système Windows, fonctionne toujours</td><td>son dans l'onglet + notifications push du navigateur</td></tr>
+<tr><td>Particularités</td><td>réglage du port, synchronisation avec le web</td><td>appareils et jetons, fiche rapide « /q », installation sur le téléphone</td></tr>
+</table>
+<p>Les données peuvent être conservées aux deux endroits à la fois et synchronisées (section 12).</p>
+
+<h2 id="s2">2. Par où commencer</h2>
+<h3><span class="tag desk">💻 Application</span></h3>
+<ol>
+<li>Téléchargez le programme d'installation <b>BpMonitorSetup.exe</b> (sur le site — bouton « ⬇ Version ordinateur » dans la section « Appareils », ou « ⬇ Version ordinateur » sur bp.xor.world) et lancez-le — les données ne sont pas touchées lors d'une réinstallation.</li>
+<li>Après le lancement, une icône ❤ apparaît dans la zone de notification, et le navigateur ouvre l'interface. Si le navigateur ne s'est pas ouvert — double-cliquez sur l'icône dans la zone de notification.</li>
+<li>Allez dans « Paramètres → Utilisateur » et indiquez la date de naissance et le sexe — le modèle les utilise comme variables.</li>
+<li>Dans « Paramètres → Général », vérifiez les coordonnées de la ville (nécessaires pour la météo).</li>
+</ol>
+<h3><span class="tag web">🌐 Web</span></h3>
+<ol>
+<li>Ouvrez <code>https://bp.xor.world</code>, connectez-vous avec votre e-mail (le compte est créé automatiquement à la première connexion ; le mot de passe est celui de votre messagerie).</li>
+<li>Ensuite — les mêmes « Paramètres → Utilisateur » et les coordonnées.</li>
+</ol>
+
+<h2 id="s3">3. Mesure de la tension artérielle</h2>
+<ol>
+<li>Assis, le bras posé sur la table, reposez-vous 5 minutes. Mesurez avec un tensiomètre.</li>
+<li>Cliquez sur <b>⚡ mesure</b> (en haut à droite). L'heure actuelle est insérée automatiquement — vous pouvez la corriger.</li>
+<li>Saisissez la tension systolique/diastolique et le pouls. Cochez les médicaments pris (si vous en avez pris), ajoutez une note.</li>
+<li>La météo, les conditions géomagnétiques et les données du journal de cette période sont repris automatiquement.</li>
+</ol>
+<p><span class="tag web">🌐 Web</span> Il y a une fiche rapide <b>/q</b> (bouton « ⚡ rapide ») — trois champs sans tout le reste, pratique depuis le téléphone.</p>
+<p>N'importe quelle mesure peut être modifiée : ouvrez-la depuis l'onglet « Historique » — la modification conserve l'historique des changements.</p>
+
+<h2 id="s4">4. Historique et graphiques</h2>
+<ul>
+<li>Onglet <b>Historique</b> — tableau des mesures (les plus récentes en haut) et journal. Le bouton « Afficher plus » charge les anciennes entrées.</li>
+<li>Graphiques : tension/pouls dans le temps, coloration des points selon les émotions. Filtre par dates — au-dessus du graphique.</li>
+<li>« Rapport pour le médecin » — voir section 13.</li>
+</ul>
+
+<h2 id="s5">5. Journal : émotions, bruit, sommeil</h2>
+<p>Trois brèves entrées aident le modèle à comprendre <i>pourquoi</i> la tension a changé :</p>
+<ul>
+<li><b>Émotion</b> — de −10 (horrible) à +10 (excellent) ;</li>
+<li><b>Bruit/événements</b> — ce qui a gêné (café, stress, effort physique…) ;</li>
+<li><b>Sommeil</b> — heures et qualité (1–10).</li>
+</ul>
+<p>Une entrée faite dans les ~12 heures avant la mesure (ou dans les 10 minutes après) est liée à celle-ci automatiquement. Remplissez au moins les jours de malaise — le modèle vous en saura gré.</p>
+
+<h2 id="s6">6. Médicaments</h2>
+<ul>
+<li><b>Liste</b> — les médicaments que vous prenez. Ils s'affichent sous forme de cases à cocher dans la mesure et participent à la prévision du modèle (le moment de la prise et la demi-vie sont pris en compte).</li>
+<li><b>Rappels de prise</b> — heure de prise pour chaque médicament ; un rappel arrivera dans la zone de notification (<span class="tag desk">💻</span>) ou en push (<span class="tag web">🌐</span>).</li>
+<li><b>Journal de prise</b> — le bouton « ✓ Pris » enregistre le fait d'avoir pris le médicament (plus précis pour le modèle que la case à cocher près de la mesure).</li>
+<li><b>Référentiel PK</b> — pour chaque médicament, on peut définir la demi-vie d'élimination/la durée d'action (par défaut — issue du référentiel médical).</li>
+</ul>
+
+<h2 id="s7">7. Rappels</h2>
+<p>Onglet <b>Rappels</b> — une liste avec édition rapide directement dans la ligne. Modes :</p>
+<ul>
+<li><b>chaque jour</b> — à l'heure indiquée ;</li>
+<li><b>par jours de la semaine</b> — cases Lun–Dim ;</li>
+<li><b>toutes les N heures</b> — par exemple « toutes les 8 heures » depuis le moment de l'activation.</li>
+</ul>
+<p>« Rappeler N min avant » — un avertissement à l'avance. Au moment du déclenchement, la mélodie <code>alarm.mp3</code> retentit ; pour l'arrêter — bouton « ⏹ son » dans l'en-tête ou clic sur l'icône dans la zone de notification.</p>
+<p><span class="tag web">🌐 Web</span> Si un onglet est ouvert — c'est lui qui sonnera (une seule fois, sans duplication avec les autres onglets). Si aucun onglet n'est ouvert — une notification push arrivera (section 8). Si le navigateur refuse le son sans clic — cliquez simplement une fois sur la page.</p>
+
+<h2 id="s8">8. Téléphone : application web et notifications <span class="tag web">🌐</span></h2>
+<h3>Installer comme application</h3>
+<ol>
+<li>Ouvrez bp.xor.world dans Chrome (Android) ou Safari (iOS) et connectez-vous.</li>
+<li>« Paramètres → Appareils → 📲 Installer sur le téléphone » (ou le menu du navigateur « Installer l'application » / « Sur l'écran d'accueil »).</li>
+<li>Après l'installation, le site s'ouvre comme une application ordinaire, sans barre d'adresse.</li>
+</ol>
+<h3>Activer les notifications push</h3>
+<ol>
+<li>Dans « Paramètres », dans le bloc « Notifications », cliquez sur <b>Activer</b> et autorisez la demande du navigateur.</li>
+<li>Le bouton indique l'état de ce navigateur précisément ; « 📡 Test d'envoi » envoie une notification d'essai à tous les appareils abonnés.</li>
+<li>Sur iPhone, le push ne fonctionne que depuis le Safari-PWA installé.</li>
+</ol>
+<p>Les notifications arrivent pour : rappel (quand aucun onglet n'est ouvert), rappels de médicaments, avertissements du modèle.</p>
+
+<h2 id="s9">9. Réseau de neurones et prévision</h2>
+<p>Onglet <b>Modèle</b>. Le réseau de neurones apprend à prédire votre tension à partir de : l'heure de la journée, la météo (pression, température, humidité, perturbations géomagnétiques), les émotions/bruit/sommeil, les médicaments (en tenant compte du moment de la prise), ainsi que <b>le sexe et l'âge</b> au moment de la mesure.</p>
+<ul>
+<li><b>Entraîner</b> — entraînement classique ; <b>Génétique</b> — plus minutieux (tâche en arrière-plan, ~30 secondes) ; <b>Ajuster</b> — sélection automatique de la taille du modèle ; <b>Vérifier</b> — évaluation honnête sur les dernières mesures mises de côté (MAE en mmHg) et « contribution » des variables.</li>
+<li>Après toute modification significative des données (nouvelle mesure, médicament, météo), le réentraînement se fait tout seul.</li>
+<li><b>Prévision</b> — le modèle est exécuté sur la prévision météo horaire et montre quand un dépassement de votre norme est attendu ; c'est là aussi qu'arrive l'avertissement « dans ~N heures ».</li>
+<li>L'icône <b>Kp</b> — prévision des perturbations géomagnétiques (≥5 — tempêtes magnétiques, les personnes sensibles réagissent par la tension).</li>
+</ul>
+<div class="note">Le modèle est un assistant, pas un diagnostic. Il explique les régularités de vos données, mais ne remplace pas le médecin.</div>
+
+<h2 id="s10">10. Météo et conditions géomagnétiques</h2>
+<p>Sous l'en-tête s'affichent la météo actuelle et le Kp — ils sont insérés dans chaque mesure automatiquement (source : service météorologique norvégien pour l'application et le site, GFZ/NOAA — pour le Kp). La météo manquante pour les jours passés peut être complétée : onglet « Modèle » → « Compléter la météo » (<span class="tag desk">💻</span>) — les archives sont récupérées selon les dates des mesures.</p>
+
+<h2 id="s11">11. Paramètres</h2>
+<p>Onglet <b>Paramètres</b> — des fiches ; « Modifier » ouvre la fenêtre d'édition, tout est enregistré immédiatement.</p>
+<ul>
+<li><b>Norme</b> — vos seuils systolique/diastolique (pour la mise en évidence, les prévisions et le rapport).</li>
+<li><b>Utilisateur</b> — nom, date de naissance, sexe (important pour le modèle !).</li>
+<li><b>Général</b> — coordonnées de la ville, période d'interrogation de la météo ; <span class="tag desk">💻</span> port de l'interface web (le changer nécessite un redémarrage).</li>
+<li><span class="tag web">🌐</span> <b>Fuseau horaire</b> — pour les rappels et les graphiques.</li>
+<li><span class="tag web">🌐</span> <b>Appareils</b> — jetons de synchronisation pour l'application/les scripts, bouton d'installation sur le téléphone, « ⬇ Version ordinateur ».</li>
+<li><span class="tag desk">💻</span> <b>Synchronisation</b> — section 12.</li>
+<li><b>Modèle</b> — paramètres fins du réseau de neurones (à ne pas changer en général).</li>
+</ul>
+<p>Le thème sombre s'active automatiquement selon le système.</p>
+
+<h2 id="s12">12. Synchronisation de l'application avec le site <span class="tag desk">💻</span>↔<span class="tag web">🌐</span></h2>
+<p>Pour tenir le journal à la fois sur l'ordinateur et sur le téléphone sans transfert manuel :</p>
+<ol>
+<li><span class="tag web">🌐</span> Sur le site : « Paramètres → Appareils → Créer un jeton ». Copiez le jeton (il n'est affiché qu'une fois).</li>
+<li><span class="tag desk">💻</span> Dans l'application : « Paramètres → Synchronisation » : activez, collez le jeton, enregistrez. Ensuite, une fois par minute (ou immédiatement après une nouvelle mesure), les modifications partent vers le serveur et en reviennent.</li>
+<li>Celui qui est « principal » dans les paramètres (qui dicte sa configuration à l'autre) — se choisit aussi dans ce bloc : « ordinateur » / « serveur » / « ne pas synchroniser ».</li>
+</ol>
+<p>Le statut est visible dans le même bloc (« push +N / pull +N »). Erreur « jeton invalide » — créez un nouveau jeton.</p>
+
+<h2 id="s13">13. Export, rapport pour le médecin, sauvegardes</h2>
+<ul>
+<li><b>Rapport pour le médecin</b> (« Historique » → « Rapport pour le médecin », CSV ou xlsx) — résumé par jour : mesures, prise de médicaments, Kp, émotions, bruit, sommeil. Le fichier s'ouvre dans Excel.</li>
+<li><b>Export de toutes les données</b> — un seul fichier JSON avec tout le journal (pour le transfert sur un autre ordinateur : « Importer » au nouvel emplacement). Avant l'import, une copie de sauvegarde automatique est faite.</li>
+<li><span class="tag desk">💻</span> L'application conserve elle-même des sauvegardes quotidiennes dans le dossier <code>backups\</code> à côté du programme (les 30 derniers jours).</li>
+<li><span class="tag web">🌐</span> Les données du serveur sont copiées par l'administrateur du site.</li>
+</ul>
+
+<h2 id="s14">14. Questions fréquentes</h2>
+<div class="card"><b>Le rappel a sonné deux fois / n'a pas sonné</b><br>
+Deux fois — vérifiez si plusieurs onglets et l'application ne sont pas ouverts en même temps (les onglets se coordonnent entre eux, l'application sonne d'elle-même). N'a pas sonné sur le téléphone — le navigateur a refusé le son avant le premier clic : ouvrez l'onglet et cliquez ; le push n'arrivera que si les onglets sont fermés et l'abonnement activé (« 📡 Test d'envoi » dans les paramètres).</div>
+<div class="card"><b>Le push n'arrive pas</b><br>« Paramètres → Notifications » → « Activer » → autorisez la demande. Le bouton « Désactiver » à la place de « Activer » sur un téléphone qui ne reçoit rien ? Rechargez la page — le bouton concerne désormais le navigateur courant. Sur iOS — uniquement Safari + installation sur l'écran « Accueil ».</div>
+<div class="card"><b>La météo ne s'est pas insérée dans la mesure</b><br>Vérifiez les coordonnées dans les paramètres et l'accès à Internet. Pour les anciennes mesures — « Compléter la météo ».</div>
+<div class="card"><b>La synchronisation affiche « Tâche annulée »</b><br>Pas de connexion au serveur (ou un proxy/VPN gêne). Vérifiez si bp.xor.world s'ouvre dans le navigateur sur cet ordinateur, puis attendez le cycle suivant — le statut se mettra à jour.</div>
+<div class="card"><b>Mot de passe oublié (web)</b><br>Le mot de passe est celui de votre messagerie (le serveur de messagerie fait office de vérification). La réinitialisation du mot de passe — via les outils de votre messagerie.</div>
+<div class="card"><b>Où sont mes données ?</b><br><span class="tag desk">💻</span> dans un dossier à côté de <code>BpMonitor.exe</code> (<code>data\</code>), elles ne sont envoyées nulle part, sauf la synchronisation que vous avez activée. <span class="tag web">🌐</span> sur le serveur bp.xor.world, accès — uniquement sous votre compte.</div>
+
+<footer>Journal de tension · notice commune pour l'application et le site bp.xor.world · <a class="back" href="/">retour au journal</a></footer>
+</div>

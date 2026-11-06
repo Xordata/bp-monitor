@@ -77,6 +77,7 @@ canvas{max-width:100%;border:1px solid var(--bd);background:var(--canvas)}
   <span id="pred" title="Прогноз личной модели">модель: —</span>
   <button onclick="apiPost('/api/alarm/stop').then(()=>flash('Звук остановлен'))" title="Остановить будильник">⏹ звук</button>
   <a href="/help" target="_blank" title="Инструкция" style="color:inherit;text-decoration:none;border:1px solid var(--border);border-radius:6px;padding:2px 8px">📖</a>
+  <button onclick="showLangModal()" title="Язык интерфейса">🌐</button>
   <span style="flex:1"></span>
 </header>
 <nav id="tabs"></nav>
@@ -304,6 +305,7 @@ canvas{max-width:100%;border:1px solid var(--bd);background:var(--canvas)}
 </div>
 <div id="flash"></div>
 
+<script src="/i18n.js"></script>
 <script>
 (function(){var mq=matchMedia('(prefers-color-scheme:dark)');
 function setTc(){var m=document.querySelector('meta[name=theme-color]');if(m)m.content=mq.matches?'#14161a':'#2f5d8a';}
@@ -377,8 +379,25 @@ function renderActive(){
 }
 
 /* ---------- состояние ---------- */
+let langInit=false;
+const LANGS=[["ru","Русский"],["en","English"],["de","Deutsch"],["fr","Français"],["pt","Português"],["es","Español"],["zh","中文"],["ja","日本語"]];
+function showLangModal(){
+  const cur=(S&&S.cfg&&S.cfg.Lang)||"";
+  openModal("Язык интерфейса / Interface language",
+    `<div class="grid">`+LANGS.map(l=>`<button class="${l[0]===cur?"primary":""}" onclick="setLang('${l[0]}')">${l[1]}</button>`).join("")+`</div>`);
+}
+async function setLang(code){
+  try{localStorage.setItem("bpxLang",code);}catch(e){}
+  if(S&&S.cfg){ S.cfg.Lang=code; try{await apiPost("/api/config",{Lang:code});}catch(e){} }
+  closeModal();
+  location.reload();
+}
 async function loadState(){
   try{S=await (await fetch("/api/state")).json();}catch(e){return;}
+  if(!langInit&&S.cfg){langInit=true;
+    if(!S.cfg.Lang) showLangModal();
+    else await loadLang(S.cfg.Lang);
+  }
   renderHeader();
   if(act!=="cfg")renderActive(); // не затираем форму настроек во время ввода
 }
@@ -387,17 +406,17 @@ setInterval(loadState,30000);
 function renderHeader(){
   const w=S.weather||{};
   $("wx").innerHTML=
-    (w.PressMm!=null?`<span>Давл ${Math.round(w.PressMm)} мм</span>`:"")+
+    (w.PressMm!=null?`<span>${tr("Давл")} ${Math.round(w.PressMm)} ${tr("мм")}</span>`:"")+
     (w.TempC!=null?`<span>${w.TempC.toFixed(1)} °C</span>`:"")+
-    (w.Hum!=null?`<span>Влажн ${Math.round(w.Hum)} %</span>`:"")+
+    (w.Hum!=null?`<span>${tr("Влажн")} ${Math.round(w.Hum)} %</span>`:"")+
     (w.Kp!=null?`<span class="${w.Kp>=50?"warn":""}">Kp ${(w.Kp/10).toFixed(1)}</span>`:"")+
-    (w.kpForecast>=5?`<span class="warn" title="прогноз NOAA SWPC на ближайшие сутки">⚡Kp прогноз ${w.kpForecast.toFixed(1)}</span>`:"")+
+    (w.kpForecast>=5?`<span class="warn" title="прогноз NOAA SWPC на ближайшие сутки">⚡${tr("Kp прогноз")} ${w.kpForecast.toFixed(1)}</span>`:"")+
     (w.Text?`<span>${esc(w.Text)}</span>`:"")+
     (w.Updated?`<span class="up">(${fhm(w.Updated)})</span>`:"")+
     `<button onclick="refreshWx()" title="Обновить погоду">⟳ погода</button>`;
   const p=S.nn&&S.nn.predict, pe=$("pred");
   if(p){
-    pe.textContent=`модель: ${Math.round(p.sys)} / ${Math.round(p.dia)}`;
+    pe.textContent=`${tr("модель:")} ${Math.round(p.sys)} / ${Math.round(p.dia)}`;
     pe.classList.toggle("bad",p.sys>S.cfg.NormSys||p.dia>S.cfg.NormDia);
   }
 }
@@ -587,7 +606,7 @@ function drawBp(l){
     x.fillStyle=col;x.fillRect(lx,T+2,10,3);x.fillStyle=cssv("--legend");x.fillText(name,lx+14,T+7);
     lx+=x.measureText(name).width+34;
   }
-  $("g-hint").textContent="красным пунктиром — норма сис "+norm;
+  $("g-hint").textContent=tr("красным пунктиром — норма сис")+" "+norm;
 }
 async function doExport(kind){
   const r=await fetch("/api/export",{method:"POST",headers:{"Content-Type":"application/json"},
@@ -605,16 +624,16 @@ async function doExport(kind){
 /* ---------- журнал: эмоции / шум / сон ---------- */
 function renderLog(){
   fillList("emo-t",S.emotions.map(e=>
-    `<tr><td>${fdt(e.T)} ${fhm(e.T)}</td><td>${(e.Val>0?"+":"")+e.Val} — ${esc(emoLabel(e.Val))}</td><td>${esc(e.Note||"")}</td>`+
+    `<tr><td>${fdt(e.T)} ${fhm(e.T)}</td><td>${(e.Val>0?"+":"")+e.Val} — ${esc(tr(emoLabel(e.Val)))}</td><td>${esc(e.Note||"")}</td>`+
     `<td><button onclick="delJ('${e.Id}')">✕</button></td></tr>`));
   fillList("noise-t",S.noises.map(e=>
-    `<tr><td>${fdt(e.T)} ${fhm(e.T)}</td><td>${esc(e.Type||"")}</td><td>${esc(e.Note||"")}</td>`+
+    `<tr><td>${fdt(e.T)} ${fhm(e.T)}</td><td>${esc(tr(e.Type||""))}</td><td>${esc(e.Note||"")}</td>`+
     `<td><button onclick="delJ('${e.Id}')">✕</button></td></tr>`));
   fillList("sleep-t",S.sleeps.map(e=>
     `<tr><td>${fdt(e.T)}</td><td>${e.Hours}</td><td>${e.Quality}</td><td>${esc(e.Note||"")}</td>`+
     `<td><button onclick="delJ('${e.Id}')">✕</button></td></tr>`));
 }
-function emoOpts(v){let h="";for(let x=-10;x<=10;x++)h+=`<option value="${x}"${x===v?" selected":""}>${(x>0?"+":"")+x} — ${emoLabel(x)}</option>`;return h;}
+function emoOpts(v){let h="";for(let x=-10;x<=10;x++)h+=`<option value="${x}"${x===v?" selected":""}>${(x>0?"+":"")+x} — ${tr(emoLabel(x))}</option>`;return h;}
 function sleepQOpts(v){let h="";for(let x=0;x<=10;x++)h+=`<option${x===v?" selected":""}>${x}</option>`;return h;}
 function openEmo(){
   openModal("Эмоция",`<div class="grid">
@@ -625,7 +644,7 @@ function openEmo(){
   $("mbody").onkeydown=enterSave(addEmo);
 }
 function openNoise(){
-  const types=(S.cfg.Noises||[]).map(t=>`<option>${esc(t)}</option>`).join("")+'<option value="__other">Другое…</option>';
+  const types=(S.cfg.Noises||[]).map(t=>`<option>${esc(tr(t))}</option>`).join("")+'<option value="__other">Другое…</option>';
   openModal("Шум / событие",`<div class="grid">
     <label>Время <input type="datetime-local" id="n-t" value="${nowDT()}"></label>
     <label>Тип <select id="n-type" onchange="$('n-custom').style.display=this.value==='__other'?'':'none'">${types}</select></label>
@@ -674,7 +693,7 @@ function importSleep(){
 /* ---------- модель ---------- */
 async function renderNn(){
   const p=S.nn&&S.nn.predict;
-  $("nn-pred").innerHTML=p?`Текущий прогноз: <b style="font-size:16px">${Math.round(p.sys)} / ${Math.round(p.dia)}</b> мм рт.ст.`:"";
+  $("nn-pred").innerHTML=p?`${tr("Текущий прогноз:")} <b style="font-size:16px">${Math.round(p.sys)} / ${Math.round(p.dia)}</b> ${tr("мм рт.ст.")}`:"";
   drawLoss();
   renderValidate(S.nn&&S.nn.validate);
   renderTune(S.nn&&S.nn.tune);
@@ -756,12 +775,12 @@ function renderTune(t){
   const box=$("nn-tune");
   if(!t){box.innerHTML="";return;}
   const res=(t.results||[]).slice(0,5);
-  box.innerHTML=`<h3 style="margin-top:12px">Автоподбор гиперпараметров (${t.at})</h3>`+
-    `Лучшая конфигурация: <b>${t.hidden} / ${t.hidden2}</b> слоёв, holdout MSE <b>${t.holdMse}</b>`+
-    (t.changed?' <span class="mut">применена к модели</span>':' <span class="mut">текущие размеры уже были лучшими</span>')+
+  box.innerHTML=`<h3 style="margin-top:12px">${tr("Автоподбор гиперпараметров")} (${t.at})</h3>`+
+    `${tr("Лучшая конфигурация:")} <b>${t.hidden} / ${t.hidden2}</b> ${tr("слоёв, holdout MSE")} <b>${t.holdMse}</b>`+
+    (t.changed?' <span class="mut">'+tr("применена к модели")+'</span>':' <span class="mut">'+tr("текущие размеры уже были лучшими")+'</span>')+
     `<table style="margin-top:6px"><thead><tr><th>слой 1</th><th>слой 2</th><th>holdout MSE</th></tr></thead><tbody>`+
     res.map(r=>`<tr><td>${r.hidden}</td><td>${r.hidden2}</td><td>${r.holdMse}</td></tr>`).join("")+
-    `</tbody></table><span class="mut">показаны 5 лучших из ${(t.results||[]).length} конфигураций сетки</span>`;
+    `</tbody></table><span class="mut">${tr("показаны 5 лучших из")} ${(t.results||[]).length} ${tr("конфигураций сетки")}</span>`;
 }
 async function nnTune(){
   if(!confirm("Подбор гиперпараметров: перебор 9 конфигураций размеров слоёв на holdout (займёт ~1–2 мин). Продолжить?"))return;
@@ -939,14 +958,14 @@ function delMd(i){S.cfg.Meds.splice(i,1);apiPost("/api/config",S.cfg).then(loadS
 /* ---------- настройки ---------- */
 function fillCfg(){
   const c=S.cfg;
-  $("sum-gen").textContent=`порт ${c.Port} · широта ${c.Lat}, долгота ${c.Lon}, погоду каждые ${c.PollMin} мин · звук ${c.AlarmFile||"alarm.mp3"}, напоминать за ${c.AlarmAheadMin} мин`;
-  $("sum-user").textContent=(c.Dob?("дата рождения "+c.Dob):"дата рождения не указана")+" · "+(c.Sex==="m"?"мужской":c.Sex==="f"?"женский":"пол не указан");
-  $("sum-norm").textContent=`норма ≤ ${c.NormSys}/${c.NormDia} · пауза popup ${c.PopupCooldownMin} мин`;
+  $("sum-gen").textContent=`${tr("порт")} ${c.Port} · ${tr("широта")} ${c.Lat}, ${tr("долгота")} ${c.Lon}, ${tr("погоду каждые")} ${c.PollMin} ${tr("мин")} · ${tr("звук")} ${c.AlarmFile||"alarm.mp3"}, ${tr("напоминать за")} ${c.AlarmAheadMin} ${tr("мин до")}`;
+  $("sum-user").textContent=(c.Dob?(tr("дата рождения")+" "+c.Dob):tr("дата рождения не указана"))+" · "+tr(c.Sex==="m"?"мужской":c.Sex==="f"?"женский":"пол не указан");
+  $("sum-norm").textContent=`${tr("норма ≤")} ${c.NormSys}/${c.NormDia} · ${tr("пауза popup")} ${c.PopupCooldownMin} ${tr("мин")}`;
   $("sum-ha").textContent=c.Ha&&c.Ha.Url?("URL "+c.Ha.Url):"не подключён";
   $("sum-nn").textContent=`lr ${c.Nn.Lr} · слои ${c.Nn.Hidden}/${c.Nn.Hidden2} · эпох ${c.Nn.Epochs}`;
   $("c-auto").checked=!!S.autostart;
   const miss=(S.measurements||[]).filter(m=>m.PressMm==null||m.TempC==null||m.Hum==null||m.Kp==null).length;
-  $("c-wxb").textContent=miss?("Заполнить погоду ("+miss+")"):"Погода заполнена ✓";
+  $("c-wxb").textContent=miss?(tr("Заполнить погоду")+" ("+miss+")"):tr("Погода заполнена ✓");
   $("sum-sync").textContent=c.SyncOn
     ?("включена, каждые "+(c.SyncIntervalMin||15)+" мин · "+(c.SyncCfgMaster==="desktop"?"конфиг: десктоп главный":c.SyncCfgMaster==="server"?"конфиг: сервер главный":"конфиг не синхр.")+(c.SyncToken?" · токен задан":" · токен не задан"))
     :"выключена";
@@ -977,10 +996,11 @@ function openCfgUser(){
   openModal("Пользователь",`<div class="grid">
     <label>Дата рождения <input type="date" id="c-dob" style="width:140px" value="${c.Dob||""}"></label>
     <label>Пол <select id="c-sex" style="width:120px"><option value="">не указан</option><option value="m"${c.Sex==="m"?" selected":""}>мужской</option><option value="f"${c.Sex==="f"?" selected":""}>женский</option></select></label>
+    <label>Язык <select id="c-lang" style="width:140px">`+LANGS.map(l=>`<option value="${l[0]}"${(c.Lang||"")===l[0]?" selected":""}>${l[1]}</option>`).join("")+`</select></label>
   </div><p class="mut">Модель использует их как признаки «возраст» (на момент каждого измерения) и «пол»; после изменения модель переобучается автоматически.</p>
   <div class="grid"><button class="primary" onclick="saveCfgUser()">Сохранить</button></div>`);
 }
-function saveCfgUser(){const c=S.cfg;c.Dob=$("c-dob").value;c.Sex=$("c-sex").value;postCfg();}
+function saveCfgUser(){const c=S.cfg;c.Dob=$("c-dob").value;c.Sex=$("c-sex").value;const cl=$("c-lang");if(cl)c.Lang=cl.value;loadLang(c.Lang);postCfg();}
 function openCfgNorm(){
   const c=S.cfg;
   openModal("Норма и оповещение",`<div class="grid">

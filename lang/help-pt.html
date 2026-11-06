@@ -1,0 +1,160 @@
+<header><div class="wrap"><b>🩺 Diário da pressão arterial</b><span>Instruções</span><span style="flex:1"></span><a href="/">← Voltar ao diário</a></div></header>
+<div class="wrap">
+
+<p>Estas instruções são iguais para as duas interfaces: <span class="tag desk">💻 aplicativo</span> — programa no computador (endereço <code>localhost:8090</code>), <span class="tag web">🌐 web</span> — site <code>bp.xor.world</code>. Tudo que não estiver marcado com um ícone funciona igualmente nas duas.</p>
+
+<div class="card"><b>Sumário</b>
+<div class="toc"><ol>
+<li><a href="#s1">O que é isto e as duas interfaces</a></li>
+<li><a href="#s2">Por onde começar</a></li>
+<li><a href="#s3">Medição da pressão arterial</a></li>
+<li><a href="#s4">Histórico e gráficos</a></li>
+<li><a href="#s5">Diário: emoções, ruído, sono</a></li>
+<li><a href="#s6">Medicamentos</a></li>
+<li><a href="#s7">Lembretes</a></li>
+<li><a href="#s8">Celular: aplicativo web e notificações</a></li>
+<li><a href="#s9">Rede neural e previsão</a></li>
+<li><a href="#s10">Clima e condições geomagnéticas</a></li>
+<li><a href="#s11">Configurações</a></li>
+<li><a href="#s12">Sincronização 💻↔🌐</a></li>
+<li><a href="#s13">Exportação, relatório para o médico, backups</a></li>
+<li><a href="#s14">Perguntas frequentes</a></li>
+</ol></div></div>
+
+<h2 id="s1">1. O que é isto e as duas interfaces</h2>
+<p>Diário eletrônico da pressão arterial: medições, diário de bem-estar, medicamentos e lembretes. Uma rede neural pessoal aprende com os seus dados e explica a previsão da pressão arterial (reação ao clima, medicamentos, privação de sono).</p>
+<table>
+<tr><th></th><th><span class="tag desk">💻 Aplicativo</span></th><th><span class="tag web">🌐 Web bp.xor.world</span></th></tr>
+<tr><td>Onde funciona</td><td>no seu computador, a interface abre no navegador no endereço <code>localhost:8090</code></td><td>em qualquer navegador de qualquer lugar do mundo, acesso por e-mail e senha</td></tr>
+<tr><td>Dados</td><td>ficam em uma pasta junto do programa</td><td>ficam no servidor, uma conta por pessoa</td></tr>
+<tr><td>Som do lembrete</td><td>som do sistema Windows, funciona sempre</td><td>som na aba + notificações push do navegador</td></tr>
+<tr><td>Particularidades</td><td>configuração de porta, sincronização com a web</td><td>dispositivos e tokens, cartão rápido "/q", instalação no celular</td></tr>
+</table>
+<p>Os dados podem ficar nos dois lugares ao mesmo tempo e ser sincronizados (seção 12).</p>
+
+<h2 id="s2">2. Por onde começar</h2>
+<h3><span class="tag desk">💻 Aplicativo</span></h3>
+<ol>
+<li>Baixe o instalador <b>BpMonitorSetup.exe</b> (no site — botão "⬇ Versão para desktop" na seção "Dispositivos", ou "⬇ Versão para desktop" em bp.xor.world) e execute-o — os dados não são tocados ao reinstalar.</li>
+<li>Após a inicialização, aparece um ícone ❤ na bandeja do sistema, e o navegador abre a interface. Se o navegador não abriu — dê dois cliques no ícone na bandeja.</li>
+<li>Vá em "Configurações → Usuário" e informe a data de nascimento e o sexo — o modelo os usa como características.</li>
+<li>Em "Configurações → Geral", verifique as coordenadas da cidade (necessárias para o clima).</li>
+</ol>
+<h3><span class="tag web">🌐 Web</span></h3>
+<ol>
+<li>Abra <code>https://bp.xor.world</code> e entre com o seu e-mail (a conta é criada automaticamente no primeiro acesso; a senha é a do seu e-mail).</li>
+<li>Depois — as mesmas "Configurações → Usuário" e as coordenadas.</li>
+</ol>
+
+<h2 id="s3">3. Medição da pressão arterial</h2>
+<ol>
+<li>Sentado, com o braço apoiado na mesa, descanse 5 minutos. Meça com um aparelho de pressão.</li>
+<li>Clique em <b>⚡ medição</b> (no canto superior direito). O horário atual é preenchido automaticamente — você pode ajustá-lo.</li>
+<li>Digite a pressão sistólica/diastólica e a pulsação. Marque os medicamentos tomados (se tomou algum) e adicione uma observação.</li>
+<li>O clima, as condições geomagnéticas e os dados do diário desse período são capturados automaticamente.</li>
+</ol>
+<p><span class="tag web">🌐 Web</span> Há um cartão rápido <b>/q</b> (botão "⚡ rápido") — três campos sem nada mais, prático pelo celular.</p>
+<p>Qualquer medição pode ser editada: abra-a na aba "Histórico" — a edição preserva o histórico de alterações.</p>
+
+<h2 id="s4">4. Histórico e gráficos</h2>
+<ul>
+<li>A aba <b>Histórico</b> — tabela de medições (as mais recentes no topo) e registro de eventos. O botão "Mostrar mais" carrega registros antigos.</li>
+<li>Gráficos: pressão/pulsação ao longo do tempo, coloração dos pontos por emoção. Filtro por datas — acima do gráfico.</li>
+<li>"Relatório para o médico" — veja a seção 13.</li>
+</ul>
+
+<h2 id="s5">5. Diário: emoções, ruído, sono</h2>
+<p>Três registros curtos ajudam o modelo a entender <i>por que</i> a pressão mudou:</p>
+<ul>
+<li><b>Emoção</b> — de −10 (péssimo) a +10 (excelente);</li>
+<li><b>Ruído/eventos</b> — o que atrapalhou (café, estresse, esforço físico…);</li>
+<li><b>Sono</b> — horas e qualidade (1–10).</li>
+</ul>
+<p>Um registro feito dentro de ~12 horas antes da medição (ou nos 10 minutos seguintes a ela) é vinculado a ela automaticamente. Preencha pelo menos nos dias de mal-estar — o modelo agradece.</p>
+
+<h2 id="s6">6. Medicamentos</h2>
+<ul>
+<li><b>Lista</b> — os medicamentos que você toma. Eles aparecem como caixas de seleção na medição e participam da previsão do modelo (o horário da tomada e a meia-vida são levados em conta).</li>
+<li><b>Lembretes</b> — horário de tomada de cada medicamento; na bandeja do sistema (<span class="tag desk">💻</span>) ou por push (<span class="tag web">🌐</span>) chegará um lembrete.</li>
+<li><b>Registro de tomadas</b> — o botão "✓ Tomar" registra o fato da tomada (mais preciso para o modelo do que a caixa de seleção na medição).</li>
+<li><b>Referência de FK</b> — para cada medicamento você pode definir a meia-vida/duração de ação (por padrão — extraída do referencial médico).</li>
+</ul>
+
+<h2 id="s7">7. Lembretes</h2>
+<p>A aba <b>Lembretes</b> — lista com edição rápida direto na linha. Modos:</p>
+<ul>
+<li><b>todos os dias</b> — no horário definido;</li>
+<li><b>por dias da semana</b> — marcações Seg–Dom;</li>
+<li><b>a cada N horas</b> — por exemplo "a cada 8 horas" a partir do momento da ativação.</li>
+</ul>
+<p>"Lembrar com N min de antecedência" — um aviso antecipado. No momento do disparo toca a melodia <code>alarm.mp3</code>; para parar — botão "⏹ som" no cabeçalho ou clique no ícone na bandeja do sistema.</p>
+<p><span class="tag web">🌐 Web</span> Se houver uma aba aberta — ela tocará (uma vez, sem duplicar com as outras abas). Se não houver abas — chegará uma notificação push (seção 8). Se o navegador bloquear o som sem clique — basta clicar uma vez na página.</p>
+
+<h2 id="s8">8. Celular: aplicativo web e notificações <span class="tag web">🌐</span></h2>
+<h3>Instalar como aplicativo</h3>
+<ol>
+<li>Abra bp.xor.world no Chrome (Android) ou Safari (iOS) e faça login.</li>
+<li>"Configurações → Dispositivos → 📲 Instalar no celular" (ou o menu do navegador "Instalar aplicativo" / "Adicionar à tela de início").</li>
+<li>Depois de instalado, o site abre como um aplicativo comum, sem barra de endereços.</li>
+</ol>
+<h3>Ativar notificações push</h3>
+<ol>
+<li>Nas "Configurações", no bloco "Notificações", clique em <b>Ativar</b> e permita a solicitação do navegador.</li>
+<li>O botão mostra o estado exatamente deste navegador; "📡 Teste de entrega" envia um teste para todos os dispositivos inscritos.</li>
+<li>No iPhone o push funciona somente pelo Safari-PWA instalado.</li>
+</ol>
+<p>As notificações chegam para: lembretes (quando não há abas abertas), lembretes de medicamentos e alertas do modelo.</p>
+
+<h2 id="s9">9. Rede neural e previsão</h2>
+<p>A aba <b>Modelo</b>. A rede neural aprende a prever a sua pressão arterial com base em: hora do dia, clima (pressão, temperatura, umidade, perturbações geomagnéticas), emoções/ruído/sono, medicamentos (com o horário da tomada), além de <b>sexo e idade</b> no momento da medição.</p>
+<ul>
+<li><b>Treinar</b> — treinamento comum; <b>Genética</b> — mais minucioso (tarefa em segundo plano, ~meio minuto); <b>Ajustar</b> — seleção automática do tamanho do modelo; <b>Verificar</b> — avaliação honesta nas últimas medições reservadas (MAE em mmHg) e a "contribuição" das características.</li>
+<li>Após qualquer alteração significativa nos dados (nova medição, medicamento, clima), o retreinamento acontece sozinho.</li>
+<li><b>Previsão</b> — o modelo é executado sobre a previsão horária do clima e mostra quando se espera sair da sua normalidade; nesse momento também chega o alerta "em ~N horas".</li>
+<li>O ícone <b>Kp</b> — previsão de perturbações geomagnéticas (≥5 — tempestades magnéticas; pessoas sensíveis reagem com a pressão).</li>
+</ul>
+<div class="note">O modelo é um assistente, não um diagnóstico. Ele explica regularidades dos seus dados, mas não substitui o médico.</div>
+
+<h2 id="s10">10. Clima e condições geomagnéticas</h2>
+<p>Abaixo do cabeçalho aparecem o clima atual e o Kp — eles são preenchidos em cada medição automaticamente (a fonte é o serviço meteorológico da Noruega para o aplicativo e o site; GFZ/NOAA — para o Kp). O clima que faltou em dias passados pode ser completado: aba "Modelo" → "Completar clima" (<span class="tag desk">💻</span>) — o arquivo histórico é baixado pelas datas das medições.</p>
+
+<h2 id="s11">11. Configurações</h2>
+<p>A aba <b>Configurações</b> — cartões; "Editar" abre a janela de edição, tudo é salvo imediatamente.</p>
+<ul>
+<li><b>Normalidade</b> — os seus limites de sistólica/diastólica (para destaque visual, previsões e relatório).</li>
+<li><b>Usuário</b> — nome, data de nascimento, sexo (importante para o modelo!).</li>
+<li><b>Geral</b> — coordenadas da cidade, período de consulta do clima; <span class="tag desk">💻</span> porta da interface web (mudá-la exige reiniciar).</li>
+<li><span class="tag web">🌐</span> <b>Fuso horário</b> — para lembretes e gráficos.</li>
+<li><span class="tag web">🌐</span> <b>Dispositivos</b> — tokens de sincronização para o aplicativo/scripts, botão de instalação no celular, "⬇ Versão para desktop".</li>
+<li><span class="tag desk">💻</span> <b>Sincronização</b> — seção 12.</li>
+<li><b>Modelo</b> — parâmetros finos da rede neural (geralmente não precisa mudar).</li>
+</ul>
+<p>O tema escuro é ativado automaticamente conforme o sistema.</p>
+
+<h2 id="s12">12. Sincronização do aplicativo com o site <span class="tag desk">💻</span>↔<span class="tag web">🌐</span></h2>
+<p>Para manter o diário no computador e no celular sem transferência manual:</p>
+<ol>
+<li><span class="tag web">🌐</span> No site: "Configurações → Dispositivos → Criar token". Copie o token (ele é mostrado uma única vez).</li>
+<li><span class="tag desk">💻</span> No aplicativo: "Configurações → Sincronização": ative, cole o token, salve. Depois, a cada minuto (ou imediatamente após uma nova medição), as alterações sobem para o servidor e voltam de lá.</li>
+<li>Quem é o "principal" nas configurações (quem dita a configuração para quem) também é escolhido nesse bloco: "desktop" / "servidor" / "não sincronizar".</li>
+</ol>
+<p>O status aparece no mesmo bloco ("push +N / pull +N"). Erro "token inválido" — crie um token novamente.</p>
+
+<h2 id="s13">13. Exportação, relatório para o médico, backups</h2>
+<ul>
+<li><b>Relatório para o médico</b> ("Histórico" → "Relatório para o médico", CSV ou xlsx) — resumo por dia: medições, tomadas de medicamentos, Kp, emoções, ruído, sono. O arquivo abre no Excel.</li>
+<li><b>Exportar todos os dados</b> — um único arquivo JSON com todo o diário (para transferir para outro computador: "Importar" no novo local). Antes da importação é feito um snapshot de backup automático.</li>
+<li><span class="tag desk">💻</span> O aplicativo guarda sozinho backups diários na pasta <code>backups\</code> junto do programa (últimos 30 dias).</li>
+<li><span class="tag web">🌐</span> Os dados do servidor são copiados pelo administrador do site como backup.</li>
+</ul>
+
+<h2 id="s14">14. Perguntas frequentes</h2>
+<div class="card"><b>O lembrete tocou duas vezes / não tocou</b><br>Duas vezes — verifique se não há várias abas e o aplicativo abertos ao mesmo tempo (as abas combinam entre si, o aplicativo toca sozinho). Não tocou no celular — o navegador bloqueou o som até o primeiro clique: abra a aba e clique; o push só chegará se as abas estiverem fechadas e a inscrição estiver ativada ("📡 Teste de entrega" nas configurações).</div>
+<div class="card"><b>O push não chega</b><br>"Configurações → Notificações" → "Ativar" → permita a solicitação. O botão "Desativar" em vez de "Ativar" com o celular vazio? Recarregue a página — o botão agora se refere ao navegador atual. No iOS — somente Safari + instalação na tela "Início".</div>
+<div class="card"><b>O clima não foi preenchido na medição</b><br>Verifique as coordenadas nas configurações e o acesso à internet. Para medições antigas — "Completar clima".</div>
+<div class="card"><b>A sincronização mostra "Tarefa cancelada"</b><br>Sem conexão com o servidor (ou um proxy/VPN está atrapalhando). Verifique se bp.xor.world abre no navegador neste computador e aguarde o próximo ciclo — o status será atualizado.</div>
+<div class="card"><b>Esqueci a senha (web)</b><br>A senha é a do seu e-mail (o servidor de e-mail é a verificação). A redefinição da senha é feita pelos recursos do seu provedor de e-mail.</div>
+<div class="card"><b>Onde estão os meus dados?</b><br><span class="tag desk">💻</span> em uma pasta junto de <code>BpMonitor.exe</code> (<code>data\</code>), nada é enviado a lugar algum, exceto a sincronização que você ativar. <span class="tag web">🌐</span> no servidor bp.xor.world, o acesso é somente com a sua conta.</div>
+
+<footer>Diário da pressão arterial · instruções comuns para o aplicativo e o site bp.xor.world · <a class="back" href="/">voltar ao diário</a></footer>
+</div>
