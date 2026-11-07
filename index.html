@@ -155,6 +155,8 @@ canvas{max-width:100%;border:1px solid var(--bd);background:var(--canvas)}
         <button onclick="importSleep()">Импортировать CSV</button>
       </div>
       <div class="scrollbox" style="margin-top:6px"><table id="sleep-t"><thead><tr><th>Дата</th><th>Часы</th><th>Кач.</th><th>Прим.</th><th></th></tr></thead><tbody></tbody></table></div>
+      <div class="grid" style="margin-top:10px"><button class="primary" onclick="openSalt()">＋ Соль</button></div>
+      <div class="scrollbox" style="margin-top:6px"><table id="salt-t"><thead><tr><th>Дата</th><th>Соление</th><th>Прим.</th><th></th></tr></thead><tbody></tbody></table></div>
     </section>
   </div>
 
@@ -476,6 +478,8 @@ function renderMeas(){
       `<td><button onclick="editM('${m.Id}')">изм</button> <button onclick="delM('${m.Id}')">✕</button></td></tr>`
     ).join("")||'<tr><td colspan="6" class="mut">сегодня измерений нет</td></tr>';
 }
+function posOpts(m){const cur=(m&&m.PosArm!=null)?Math.floor(m.PosArm/4):-1;return '<option value="">—</option>'+["сидя","стоя","лёжа"].map((x,i)=>`<option value="${i}"${i===cur?" selected":""}>${x}</option>`).join("");}
+function armOpts(m){const cur=(m&&m.PosArm!=null)?m.PosArm%4:-1;return '<option value="">—</option>'+["левая","правая"].map((x,i)=>`<option value="${i}"${i===cur?" selected":""}>${x}</option>`).join("")+`<option value="2"${cur===2?" selected":""}>не указано</option>`;}
 function measFormHtml(m){
   const meds=S.cfg.Meds||[];
   return `<div class="grid">
@@ -483,6 +487,8 @@ function measFormHtml(m){
     <label>Сист. <input type="number" id="m-sys" style="width:62px" value="${m!=null?m.Sys:""}"></label>
     <label>Диаст. <input type="number" id="m-dia" style="width:62px" value="${m!=null?m.Dia:""}"></label>
     <label>Пульс <input type="number" id="m-pulse" style="width:62px" value="${m!=null?m.Pulse:""}"></label>
+    <label>Поза <select id="m-pos" style="width:96px">${posOpts(m)}</select></label>
+    <label>Рука <select id="m-arm" style="width:110px">${armOpts(m)}</select></label>
     <label>Примечание <input id="m-note" style="width:180px" placeholder="по желанию" value="${m?esc(m.Note||""):""}"></label>
   </div>
   <div style="margin-top:6px" id="m-meds">${meds.length
@@ -507,6 +513,8 @@ function saveM(){
   if(!timeValue){flash("Укажите дату и время",false);return;}
   const body={t:timeValue,sys:+$("m-sys").value,dia:+$("m-dia").value,pulse:+$("m-pulse").value,
     note:$("m-note").value,meds:[...document.querySelectorAll("#m-meds input:checked")].map(i=>i.value)};
+  const pv=$("m-pos").value,av=$("m-arm").value;
+  if(pv!=="")body.posArm=(+pv)*4+(av===""?2:+av);
   if(!body.sys||!body.dia){flash("Укажите систолическое и диастолическое",false);return;}
   (editingId?apiPost("/api/measurement/update",{id:editingId,...body}):apiPost("/api/measurement",body))
     .then(j=>{
@@ -629,10 +637,24 @@ function renderLog(){
   fillList("noise-t",S.noises.map(e=>
     `<tr><td>${fdt(e.T)} ${fhm(e.T)}</td><td>${esc(tr(e.Type||""))}</td><td>${esc(e.Note||"")}</td>`+
     `<td><button onclick="delJ('${e.Id}')">✕</button></td></tr>`));
+  fillList("salt-t",(S.salts||[]).map(e=>
+    `<tr><td>${fdt(e.T)}</td><td>${saltLabel(e.Val)}</td><td>${esc(e.Note||"")}</td>`+
+    `<td><button onclick="delJ('${e.Id}')">✕</button></td></tr>`));
   fillList("sleep-t",S.sleeps.map(e=>
     `<tr><td>${fdt(e.T)}</td><td>${e.Hours}</td><td>${e.Quality}</td><td>${esc(e.Note||"")}</td>`+
     `<td><button onclick="delJ('${e.Id}')">✕</button></td></tr>`));
 }
+function saltLabel(v){return v+" — "+["почти не солёное","слабосолёное","обычное","солёное","очень солёное"][v-1];}
+function openSalt(){
+  openModal("Соль",`<div class="grid">
+    <label>Дата <input type="datetime-local" id="salt-t-" value="${nowDT()}"></label>
+    <label>Соление <select id="salt-v">${[1,2,3,4,5].map(v=>`<option value="${v}"${v===3?" selected":""}>${saltLabel(v)}</option>`).join("")}</select></label>
+    <label>Прим. <input id="salt-note" style="width:160px"></label>
+  </div><div class="grid" style="margin-top:8px"><button class="primary" onclick="addSalt()">Сохранить (Enter)</button></div>`);
+  $("mbody").onkeydown=enterSave(addSalt);
+}
+function addSalt(){apiPost("/api/salt",{t:$("salt-t-").value,val:+$("salt-v").value,note:$("salt-note").value})
+  .then(j=>{flash(j.ok?"Сохранено":(j.err||"Ошибка"),!!j.ok);if(j.ok)closeModal();loadState();});}
 function emoOpts(v){let h="";for(let x=-10;x<=10;x++)h+=`<option value="${x}"${x===v?" selected":""}>${(x>0?"+":"")+x} — ${tr(emoLabel(x))}</option>`;return h;}
 function sleepQOpts(v){let h="";for(let x=0;x<=10;x++)h+=`<option${x===v?" selected":""}>${x}</option>`;return h;}
 function openEmo(){
@@ -983,12 +1005,23 @@ function openCfgGen(){
     <label>Порт <input type="number" id="c-port" style="width:70px" value="${c.Port}"></label>
     <label>Широта <input type="number" step="0.0001" id="c-lat" style="width:92px" value="${c.Lat}"></label>
     <label>Долгота <input type="number" step="0.0001" id="c-lon" style="width:92px" value="${c.Lon}"></label>
+    <label>Город <input id="c-geo" style="width:160px" placeholder="название — поиск"><button onclick="geoFind()">🔎</button></label>
     <label>Опрос погоды, мин <input type="number" id="c-poll" style="width:60px" value="${c.PollMin}"></label>
     <label>mp3-файл (рядом с программой) <input id="c-alarm" style="width:140px" value="${esc(c.AlarmFile||"")}"></label>
     <label>Напоминать, мин до <input type="number" id="c-ahead" style="width:60px" value="${c.AlarmAheadMin}"></label>
-  </div><p class="mut">После смены порта нужно перезапустить приложение (Выход в трее и запуск снова).</p>
+  </div><div class="grid" id="geo-res" style="margin-top:6px"></div><p class="mut">После смены порта нужно перезапустить приложение (Выход в трее и запуск снова).</p>
   <div class="grid" style="margin-top:10px"><button class="primary" onclick="saveCfgGen()">Сохранить</button></div>`);
 }
+async function geoFind(){
+  const q=$("c-geo").value.trim(),box=$("geo-res");box.innerHTML="";
+  if(q.length<2){flash("Укажите название города",false);return;}
+  let j;try{j=await (await fetch("/api/geo?q="+encodeURIComponent(q))).json();}catch(e){flash("Геокодер недоступен",false);return;}
+  const rs=j.results||[];
+  if(!rs.length){flash("Не найдено",false);return;}
+  window.__geo=rs;
+  box.innerHTML=rs.map((r,i)=>`<button onclick="geoPick(${i})">${esc(r.n)}${r.a?", "+esc(r.a):""}</button>`).join("");
+}
+function geoPick(i){const r=window.__geo[i];$("c-lat").value=r.lat;$("c-lon").value=r.lon;$("geo-res").innerHTML="";flash("Координаты подставлены — нажмите «Сохранить»");}
 function saveCfgGen(){const c=S.cfg;c.Port=+$("c-port").value||c.Port;c.Lat=+$("c-lat").value;c.Lon=+$("c-lon").value;c.PollMin=+$("c-poll").value;
   c.AlarmFile=$("c-alarm").value.trim();c.AlarmAheadMin=+$("c-ahead").value||0;postCfg();}
 function openCfgUser(){

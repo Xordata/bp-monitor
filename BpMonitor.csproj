@@ -44,6 +44,9 @@
     <None Update="alarm.mp3">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Update="q.html">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Update="help.html">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

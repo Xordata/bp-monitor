@@ -136,6 +136,13 @@ public class Measurement{
 	public List<string> Noise=new List<string>();
 	public float? SleepH;
 	public int? SleepQ;
+	public int? PosArm;// поза+рука: pos*4+arm; pos 0=сидя,1=стоя,2=лёжа; arm 0=левая,1=правая,2=не указано
+}
+public class SaltEntry{
+	public string Id;
+	public DateTime T;
+	public int Val;// 1..5 — «соление» дня
+	public string Note="";
 }
 public class EmotionEntry{
 	public string Id;
@@ -174,6 +181,7 @@ public class DataStore{
 	public List<EmotionEntry> E=new List<EmotionEntry>();
 	public List<NoiseEntry> N=new List<NoiseEntry>();
 	public List<SleepEntry> S=new List<SleepEntry>();
+	public List<SaltEntry> Salt=new List<SaltEntry>();
 	public List<MedTakeEntry> MedTakes=new List<MedTakeEntry>();
 	public NnModel Nn;
 	public DateTime? LastPopup;
@@ -383,6 +391,7 @@ static class App{
 					foreach(EmotionEntry e in D.E.OrderBy(x=>x.T)) WriteRec(w,RecEmo,EmoPayload(e,pool));
 					foreach(NoiseEntry n2 in D.N.OrderBy(x=>x.T)) WriteRec(w,RecNoi,NoiPayload(n2,pool));
 					foreach(SleepEntry s2 in D.S.OrderBy(x=>x.T)) WriteRec(w,RecSleep,SleepPayload(s2,pool));
+					foreach(SaltEntry st in D.Salt.OrderBy(x=>x.T)) WriteRec(w,RecSalt,SaltPayload(st,pool));
 					foreach(MedTakeEntry mt in D.MedTakes.OrderBy(x=>x.T)) WriteRec(w,RecMedTake,MedTakePayload(mt,pool));
 					if(D.LastPopup!=null) WriteRec(w,RecPopup,RecPayload(w2=>w2.Write(D.LastPopup.Value.Ticks)));
 				}
@@ -432,7 +441,7 @@ static class App{
 	// data.bin только при компакции/миграции. nn.bin — модель, маленькая, переписывается всегда.
 	const uint BinMagic=0x4E4D5042;// "BPMN"
 	const byte BinVer=2;
-	const byte RecStr=1,RecMeas=0x10,RecMeasDel=0x11,RecEmo=0x20,RecEmoDel=0x21,RecNoi=0x30,RecNoiDel=0x31,RecSleep=0x40,RecSleepDel=0x41,RecPopup=0x50,RecMedTake=0x60,RecMedTakeDel=0x61;
+	const byte RecStr=1,RecMeas=0x10,RecMeasDel=0x11,RecEmo=0x20,RecEmoDel=0x21,RecNoi=0x30,RecNoiDel=0x31,RecSleep=0x40,RecSleepDel=0x41,RecPopup=0x50,RecMedTake=0x60,RecMedTakeDel=0x61,RecSalt=0x70,RecSaltDel=0x71;
 	static Dictionary<string,int> _pool=new Dictionary<string,int>();
 	static int _poolNext;
 	static int _logRecords;
@@ -462,7 +471,7 @@ static class App{
 			w.Write((ushort)m.Sys); w.Write((ushort)m.Dia); w.Write((ushort)m.Pulse);// 6
 			byte fl=0;// биты присутствия опциональных полей
 			if(m.PressMm!=null)fl|=1; if(m.TempC!=null)fl|=2; if(m.Hum!=null)fl|=4; if(m.Kp!=null)fl|=8;
-			if(m.EmotionV!=null)fl|=16; if(m.SleepH!=null)fl|=32; if(m.SleepQ!=null)fl|=64;
+			if(m.EmotionV!=null)fl|=16; if(m.SleepH!=null)fl|=32; if(m.SleepQ!=null)fl|=64; if(m.PosArm!=null)fl|=128;
 			w.Write(fl);
 			if(m.PressMm!=null)w.Write(m.PressMm.Value);
 			if(m.TempC!=null)w.Write(m.TempC.Value);
@@ -471,6 +480,7 @@ static class App{
 			if(m.EmotionV!=null)w.Write((sbyte)m.EmotionV.Value);
 			if(m.SleepH!=null)w.Write(m.SleepH.Value);
 			if(m.SleepQ!=null)w.Write((byte)m.SleepQ.Value);
+			if(m.PosArm!=null)w.Write((byte)m.PosArm.Value);
 			w.Write((ushort)(string.IsNullOrEmpty(m.Wx)?0xFFFF:pool(m.Wx)));
 			w.Write((byte)Math.Min(255,m.Meds.Count));
 			foreach(string s3 in m.Meds.Take(255)) w.Write((ushort)pool(s3));
@@ -519,12 +529,25 @@ static class App{
 	static void AppendRec(byte type,byte[] payload){
 		lock(Io){ try{ using(BinaryWriter w=OpenAppend()) WriteRec(w,type,payload); } catch{} }
 	}
+	static byte[] SaltPayload(SaltEntry st,Func<string,int> pool){
+		return RecPayload(w=>{
+			Guid g; Guid.TryParse(st.Id,out g);
+			w.Write(g.ToByteArray()); w.Write(st.T.Ticks); w.Write((byte)st.Val);
+			byte[] nb=Encoding.UTF8.GetBytes(st.Note??""); w.Write((ushort)nb.Length); w.Write(nb);
+		});
+	}
+	static SaltEntry ReadSalt(BinaryReader p){
+		Guid g=new Guid(p.ReadBytes(16)); DateTime t=new DateTime(p.ReadInt64()); int v=p.ReadByte();
+		string note=Encoding.UTF8.GetString(p.ReadBytes(p.ReadUInt16()));
+		return new SaltEntry{Id=g.ToString("N"),T=t,Val=v,Note=note};
+	}
+	static void AppendSalt(SaltEntry st){ lock(Io){ try{ using(BinaryWriter w=OpenAppend()) WriteRec(w,RecSalt,SaltPayload(st,PoolWriter(w))); } catch{} } }
 	static void AppendMeasurement(Measurement m){ lock(Io){ try{ using(BinaryWriter w=OpenAppend()) WriteRec(w,RecMeas,MeasPayload(m,PoolWriter(w))); } catch{} } }
 	static void AppendEmotion(EmotionEntry e){ lock(Io){ try{ using(BinaryWriter w=OpenAppend()) WriteRec(w,RecEmo,EmoPayload(e,PoolWriter(w))); } catch{} } }
 	static void AppendNoise(NoiseEntry n2){ lock(Io){ try{ using(BinaryWriter w=OpenAppend()) WriteRec(w,RecNoi,NoiPayload(n2,PoolWriter(w))); } catch{} } }
 	static void AppendSleep(SleepEntry s2){ lock(Io){ try{ using(BinaryWriter w=OpenAppend()) WriteRec(w,RecSleep,SleepPayload(s2,PoolWriter(w))); } catch{} } }
 	static void AppendMedTake(MedTakeEntry mt){ lock(Io){ try{ using(BinaryWriter w=OpenAppend()) WriteRec(w,RecMedTake,MedTakePayload(mt,PoolWriter(w))); } catch{} } }
-	static void AppendGuidRec(byte type,string id){ Guid g; if(Guid.TryParse(id,out g)){ if(type==RecMeasDel||type==RecEmoDel||type==RecNoiDel||type==RecSleepDel||type==RecMedTakeDel) SyncLayer.MarkDead(g); AppendRec(type,RecPayload(w=>w.Write(g.ToByteArray()))); } }
+	static void AppendGuidRec(byte type,string id){ Guid g; if(Guid.TryParse(id,out g)){ if(type==RecMeasDel||type==RecEmoDel||type==RecNoiDel||type==RecSleepDel||type==RecMedTakeDel||type==RecSaltDel) SyncLayer.MarkDead(g); AppendRec(type,RecPayload(w=>w.Write(g.ToByteArray()))); } }
 	static void AppendPopup(){ if(D.LastPopup!=null) AppendRec(RecPopup,RecPayload(w=>w.Write(D.LastPopup.Value.Ticks))); }
 	static bool SameId(string id,Guid g){ Guid g2; return Guid.TryParse(id,out g2)&&g2==g; }
 	static string GetPool(Dictionary<int,string> pool,int id){ string s3; return pool.TryGetValue(id,out s3)?s3:""; }
@@ -557,6 +580,7 @@ static class App{
 							float? emo=(fl&16)!=0?(float?)p.ReadSByte():null;
 							float? sleepH=(fl&32)!=0?(float?)p.ReadSingle():null;
 							int? sleepQ=(fl&64)!=0?(int?)p.ReadByte():null;
+							int? posArm=(fl&128)!=0?(int?)p.ReadByte():null;
 							int wxId=p.ReadUInt16();
 							int mc=p.ReadByte(); List<string> meds=new List<string>();
 							for(int i2=0;i2<mc;i2++) meds.Add(GetPool(pool,p.ReadUInt16()));
@@ -568,7 +592,7 @@ static class App{
 								Id=g.ToString("N"),T=t,Sys=sys,Dia=dia,Pulse=pulse,
 								PressMm=press,TempC=temp,Hum=hum,Kp=kp,SleepH=sleepH,SleepQ=sleepQ,
 								EmotionV=emo,EmotionLabel=emo!=null?DataStore.EmotionLabel((int)emo.Value):"",
-								Wx=wxId==0xFFFF?"":GetPool(pool,wxId),Meds=meds,Noise=noise,Note=note});
+								Wx=wxId==0xFFFF?"":GetPool(pool,wxId),Meds=meds,Noise=noise,Note=note,PosArm=posArm});
 						}
 						else if(type==RecMeasDel){ Guid g=new Guid(p.ReadBytes(16)); SyncLayer.MarkDead(g); D.M.RemoveAll(x=>SameId(x.Id,g)); }
 						else if(type==RecEmo){
@@ -592,6 +616,12 @@ static class App{
 							D.S.Add(new SleepEntry{Id=g.ToString("N"),T=t,Hours=hours,Quality=q,Note=note});
 						}
 						else if(type==RecSleepDel){ Guid g=new Guid(p.ReadBytes(16)); SyncLayer.MarkDead(g); D.S.RemoveAll(x=>SameId(x.Id,g)); }
+						else if(type==RecSalt){
+							SaltEntry st=ReadSalt(p);
+							D.Salt.RemoveAll(x=>x.Id==st.Id);
+							D.Salt.Add(st);
+						}
+						else if(type==RecSaltDel){ Guid g=new Guid(p.ReadBytes(16)); SyncLayer.MarkDead(g); D.Salt.RemoveAll(x=>SameId(x.Id,g)); }
 						else if(type==RecMedTake){
 							Guid g=new Guid(p.ReadBytes(16)); DateTime t=new DateTime(p.ReadInt64());
 							string med=GetPool(pool,p.ReadUInt16());
@@ -1899,6 +1929,7 @@ static class App{
 				["emotions"]=JArray.FromObject(D.E.OrderBy(e=>e.T).ToList()),
 				["noises"]=JArray.FromObject(D.N.OrderBy(e=>e.T).ToList()),
 				["sleeps"]=JArray.FromObject(D.S.OrderBy(e=>e.T).ToList()),
+				["salts"]=JArray.FromObject(D.Salt.OrderBy(e=>e.T).ToList()),
 				["medtakes"]=JArray.FromObject(D.MedTakes.OrderBy(x=>x.T).ToList()),
 				["lastPopup"]=D.LastPopup!=null?(JToken)D.LastPopup.Value.ToString("yyyy-MM-dd HH:mm:ss"):JValue.CreateNull()
 			},
@@ -1922,6 +1953,7 @@ static class App{
 		if(d["emotions"] is JArray a2) nd.E=a2.ToObject<List<EmotionEntry>>()??new List<EmotionEntry>();
 		if(d["noises"] is JArray a3) nd.N=a3.ToObject<List<NoiseEntry>>()??new List<NoiseEntry>();
 		if(d["sleeps"] is JArray a4) nd.S=a4.ToObject<List<SleepEntry>>()??new List<SleepEntry>();
+		if(d["salts"] is JArray a6) nd.Salt=a6.ToObject<List<SaltEntry>>()??new List<SaltEntry>();
 		if(d["medtakes"] is JArray a5) nd.MedTakes=a5.ToObject<List<MedTakeEntry>>()??new List<MedTakeEntry>();
 		if(d["lastPopup"]!=null&&d["lastPopup"].Type!=JTokenType.Null){
 			DateTime lpd;
@@ -1994,6 +2026,7 @@ static class App{
 			["emotions"]=JArray.FromObject(D.E.OrderByDescending(e=>e.T).ToList()),
 			["noises"]=JArray.FromObject(D.N.OrderByDescending(e=>e.T).ToList()),
 			["sleeps"]=JArray.FromObject(D.S.OrderByDescending(e=>e.T).ToList()),
+			["salts"]=JArray.FromObject(D.Salt.OrderByDescending(e=>e.T).ToList()),
 			["medtakes"]=JArray.FromObject(D.MedTakes.OrderByDescending(x=>x.T).Take(500).ToList()),
 			["medPkDb"]=JObject.FromObject(MedPkDb),
 			["nn"]=new JObject{
@@ -2098,6 +2131,38 @@ static class App{
 						Respond(ctx.Response,200,"text/html",Encoding.UTF8.GetBytes("<h3>index.html не найден рядом с exe</h3>"));
 						return;
 					}
+					case"/q":{
+						string qp=Path.Combine(ExeDir,"q.html");
+						if(File.Exists(qp)){Respond(ctx.Response,200,"text/html; charset=utf-8",File.ReadAllBytes(qp));return;}
+						Respond(ctx.Response,200,"text/html",Encoding.UTF8.GetBytes("<h3>q.html не найден рядом с exe</h3>"));
+						return;
+					}
+					case"/api/geo":{// геокодинг города (photon.komoot.io, OSM) — как серверный /api/geo
+						string gq=(ctx.Request.QueryString["q"]??"").Trim();
+						if(gq.Length<2||gq.Length>80){ Respond(ctx.Response,400,"application/json; charset=utf-8",Encoding.UTF8.GetBytes("{\"ok\":false,\"err\":\"q\"}")); return; }
+						try{
+							using(var hc=new HttpClient{Timeout=TimeSpan.FromSeconds(8)}){
+								var rq2=new HttpRequestMessage(HttpMethod.Get,"https://photon.komoot.io/api/?q="+Uri.EscapeDataString(gq)+"&limit=6");
+								rq2.Headers.UserAgent.ParseAdd("BpMonitor/1.0 (contact: admin@example.org)");
+								using(var rs=hc.SendAsync(rq2).GetAwaiter().GetResult()){
+									rs.EnsureSuccessStatusCode();
+									JObject j=JObject.Parse(rs.Content.ReadAsStringAsync().GetAwaiter().GetResult());
+									JArray res=new JArray();
+									foreach(JToken ft in (j["features"] as JArray)??new JArray()){
+										JArray co=ft["geometry"]!=null?ft["geometry"]["coordinates"] as JArray:null;
+										if(co==null||co.Count<2) continue;
+										JToken pr=ft["properties"]??new JObject();
+										string nm=(string)pr["name"]??(string)pr["street"]??"";
+										if(nm=="") continue;
+										string a=string.Join(", ",new[]{(string)pr["city"],(string)pr["state"],(string)pr["country"]}.Where(x=>!string.IsNullOrEmpty(x)).Distinct());
+										res.Add(new JObject{["n"]=nm,["a"]=a,["lat"]=Math.Round((double)co[1],4),["lon"]=Math.Round((double)co[0],4)});
+									}
+									Respond(ctx.Response,200,"application/json; charset=utf-8",Encoding.UTF8.GetBytes(new JObject{["ok"]=true,["results"]=res}.ToString(Formatting.None)));
+									return;
+								}
+							}
+						}catch{ Respond(ctx.Response,502,"application/json; charset=utf-8",Encoding.UTF8.GetBytes("{\"ok\":false,\"err\":\"geo\"}")); return; }
+					}
 					case"/help":{
 						string hp2=Path.Combine(ExeDir,"help.html");
 						if(File.Exists(hp2)){Respond(ctx.Response,200,"text/html; charset=utf-8",File.ReadAllBytes(hp2));return;}
@@ -2148,6 +2213,7 @@ static class App{
 						Note=jo["note"]!=null?jo["note"].ToString():""
 					};
 					if(jo["meds"] is JArray) m.Meds=jo["meds"].Values<string>().Where(x=>x!="").ToList();
+					if(jo["posArm"]!=null&&jo["posArm"].Type!=JTokenType.Null){ int pa=(int)jo["posArm"]; m.PosArm=(pa>=0&&pa<=11)?(int?)pa:null; }
 					Snapshot(m);
 					if(m.T<=DateTime.Now.AddHours(-2)) FillWx(m);// старая запись: история погоды за этот момент
 					D.M.Add(m);
@@ -2168,6 +2234,7 @@ static class App{
 						m.Note=jo["note"]!=null?jo["note"].ToString():"";
 						if(m.T<=DateTime.Now.AddHours(-2)) FillWx(m);
 						if(jo["meds"] is JArray) m.Meds=jo["meds"].Values<string>().Where(x=>x!="").ToList();
+					if(jo["posArm"]!=null&&jo["posArm"].Type!=JTokenType.Null){ int pa=(int)jo["posArm"]; m.PosArm=(pa>=0&&pa<=11)?(int?)pa:null; }
 						Train();
 						AppendMeasurement(m);
 						SaveNn();
@@ -2194,6 +2261,15 @@ static class App{
 					JsonResp(ctx.Response,new{ok=true});
 					return;
 				}
+				case"/api/salt":{
+					int v=(int)jo["val"];
+					if(v<1||v>5){ JsonResp(ctx.Response,new{ok=false,err="val 1..5"}); return; }
+					SaltEntry st=new SaltEntry{Id=Guid.NewGuid().ToString("N"),T=JT(jo,"t"),Val=v,Note=jo["note"]!=null?jo["note"].ToString():""};
+					D.Salt.Add(st);
+					AppendSalt(st);
+					JsonResp(ctx.Response,new{ok=true});
+					return;
+				}
 				case"/api/noise":{
 					NoiseEntry ne=new NoiseEntry{Id=Guid.NewGuid().ToString("N"),T=JT(jo,"t"),Type=jo["type"].ToString(),Note=jo["note"]!=null?jo["note"].ToString():""};
 					D.N.Add(ne);
@@ -2216,6 +2292,7 @@ static class App{
 					if(D.E.Any(x=>x.Id==id)){ D.E.Remove(D.E.First(x=>x.Id==id)); AppendGuidRec(RecEmoDel,id); }
 					else if(D.N.Any(x=>x.Id==id)){ D.N.Remove(D.N.First(x=>x.Id==id)); AppendGuidRec(RecNoiDel,id); }
 					else if(D.S.Any(x=>x.Id==id)){ D.S.Remove(D.S.First(x=>x.Id==id)); AppendGuidRec(RecSleepDel,id); }
+					else if(D.Salt.Any(x=>x.Id==id)){ D.Salt.Remove(D.Salt.First(x=>x.Id==id)); AppendGuidRec(RecSaltDel,id); }
 					JsonResp(ctx.Response,new{ok=true});
 					return;
 				}
@@ -2516,6 +2593,20 @@ static class App{
 			if(D.E.Count!=0) throw new Exception("tombstone эмоции не сработал");
 			if(D.N.Count!=1||D.S.Count!=1) throw new Exception("журнал: N="+D.N.Count+" S="+D.S.Count);
 			if(D.LastPopup==null||D.LastPopup.Value!=new DateTime(2026,8,21,9,0,0)) throw new Exception("LastPopup");
+		});
+		check("соль + поза/рука: round-trip и tombstone",()=>{
+			string sid=Guid.NewGuid().ToString("N"),mid=Guid.NewGuid().ToString("N");
+			AppendSalt(new SaltEntry{Id=sid,T=new DateTime(2026,9,1,9,0,0),Val=4,Note="сёлёдка"});
+			AppendMeasurement(new Measurement{Id=mid,T=new DateTime(2026,9,1,10,0,0),Sys=120,Dia=80,Pulse=65,PosArm=2*4+1});
+			D=new DataStore(); LoadBin();
+			SaltEntry st=D.Salt.FirstOrDefault(x=>x.Id==sid);
+			if(st==null||st.Val!=4||st.Note!="сёлёдка") throw new Exception("соль потеряна");
+			Measurement mp=D.M.FirstOrDefault(x=>x.PosArm!=null);
+			if(mp==null||mp.PosArm.Value!=9) throw new Exception("PosArm потерян");
+			AppendGuidRec(RecSaltDel,sid); AppendGuidRec(RecMeasDel,mid);// за собой убираем — следующие проверки считают измерения в этом же sandbox
+			D=new DataStore(); LoadBin();
+			if(D.Salt.Any(x=>x.Id==sid)) throw new Exception("tombstone соли не сработал");
+			if(D.M.Any(x=>x.Id==mid)) throw new Exception("tombstone измерения не сработал");
 		});
 		check("data.bin: оборванный хвост после краша",()=>{
 			using(FileStream fs=File.Open(DataBinPath,FileMode.Append)) fs.Write(new byte[]{0x10,0x40,0x00,0x00,0x00,1,2,3},0,8);// запись обещает 0x40 байт, файл обрывается
@@ -2867,6 +2958,8 @@ static class App{
 			if(type==RecSleepDel) return new JObject{["k"]="sleepDel",["Id"]=new Guid(p.ReadBytes(16)).ToString("N")};
 			if(type==RecMedTake){ JObject jo=JObject.FromObject(DecodeMt(p,pool)); jo["k"]="mt"; return jo; }
 			if(type==RecMedTakeDel) return new JObject{["k"]="mtDel",["Id"]=new Guid(p.ReadBytes(16)).ToString("N")};
+			if(type==RecSalt){ JObject jo=JObject.FromObject(DecodeSalt(p)); jo["k"]="salt"; return jo; }
+			if(type==RecSaltDel) return new JObject{["k"]="saltDel",["Id"]=new Guid(p.ReadBytes(16)).ToString("N")};
 			return null;
 		}
 		static Measurement DecodeMeas(BinaryReader p,Dictionary<int,string> pool){
@@ -2905,6 +2998,11 @@ static class App{
 			Guid g=new Guid(p.ReadBytes(16)); DateTime t=new DateTime(p.ReadInt64());
 			float hours=p.ReadSingle(); int q=p.ReadByte(); string note=Encoding.UTF8.GetString(p.ReadBytes(p.ReadUInt16()));
 			return new SleepEntry{Id=g.ToString("N"),T=t,Hours=hours,Quality=q,Note=note};
+		}
+		static SaltEntry DecodeSalt(BinaryReader p){
+			Guid g=new Guid(p.ReadBytes(16)); DateTime t=new DateTime(p.ReadInt64()); int v=p.ReadByte();
+			string note=Encoding.UTF8.GetString(p.ReadBytes(p.ReadUInt16()));
+			return new SaltEntry{Id=g.ToString("N"),T=t,Val=v,Note=note};
 		}
 		static MedTakeEntry DecodeMt(BinaryReader p,Dictionary<int,string> pool){
 			Guid g=new Guid(p.ReadBytes(16)); DateTime t=new DateTime(p.ReadInt64());
@@ -2949,6 +3047,14 @@ static class App{
 				D.S.RemoveAll(x=>x.Id==se.Id); D.S.Add(se); AppendSleep(se); n++;
 			}
 			if((a=d["sleepDel"] as JArray)!=null) foreach(JToken jt in a) if(ApplyDel((string)jt,D.S,x=>x.Id,RecSleepDel)) n++;
+			if((a=d["salt"] as JArray)!=null) foreach(JToken jt in a){
+				SaltEntry st=jt.ToObject<SaltEntry>();
+				if(!GoodId(st.Id)||st.T==default(DateTime)||st.Val<1||st.Val>5) continue;
+				SaltEntry ex=D.Salt.FirstOrDefault(x=>x.Id==st.Id);
+				if(ex!=null&&SaltHash(ex)==SaltHash(st)) continue;
+				D.Salt.RemoveAll(x=>x.Id==st.Id); D.Salt.Add(st); AppendSalt(st); n++;
+			}
+			if((a=d["saltDel"] as JArray)!=null) foreach(JToken jt in a) if(ApplyDel((string)jt,D.Salt,x=>x.Id,RecSaltDel)) n++;
 			if((a=d["medtake"] as JArray)!=null) foreach(JToken jt in a){
 				MedTakeEntry mt=jt.ToObject<MedTakeEntry>();
 				if(!GoodId(mt.Id)||mt.T==default(DateTime)) continue;
@@ -2972,14 +3078,23 @@ static class App{
 		// ---------- хэши содержимого (должны совпадать с серверными MeasHash/... в bpxor) ----------
 		static string HH(object v){ return v==null?"":Convert.ToString(v,CultureInfo.InvariantCulture); }
 		public static string MeasHash(Measurement m){
-			return string.Join("|",m.T.Ticks,m.Sys,m.Dia,m.Pulse,HH(m.PressMm),HH(m.TempC),HH(m.Hum),HH(m.Kp),HH(m.EmotionV),HH(m.SleepH),HH(m.SleepQ),m.Wx??"",m.Note??"",
+			return string.Join("|",m.T.Ticks,m.Sys,m.Dia,m.Pulse,HH(m.PressMm),HH(m.TempC),HH(m.Hum),HH(m.Kp),HH(m.EmotionV),HH(m.SleepH),HH(m.SleepQ),HH(m.PosArm),m.Wx??"",m.Note??"",
 				string.Join(",",(m.Meds??new List<string>()).OrderBy(x=>x)),string.Join(",",(m.Noise??new List<string>()).OrderBy(x=>x)));
 		}
 		static string EmoHash(EmotionEntry e){ return string.Join("|",e.T.Ticks,e.Val,e.Note??""); }
 		static string NoiHash(NoiseEntry n){ return string.Join("|",n.T.Ticks,n.Type??"",n.Note??""); }
 		static string SleepHash(SleepEntry s){ return string.Join("|",HH(s.Hours),s.Quality,s.Note??"",s.T.Ticks); }
 		static string MtHash(MedTakeEntry mt){ return string.Join("|",mt.T.Ticks,mt.Med??""); }
+		static string SaltHash(SaltEntry st){ return string.Join("|",st.T.Ticks,st.Val,st.Note??""); }
 	}
+}
+
+// ============================== ГЛОБАЛЬНЫЙ ХОТКЕЙ ==============================
+// Ctrl+Alt+M -> быстрая форма замера (/q). NativeWindow даёт HWND для RegisterHotKey;
+// сообщения крутятся в основном Application.Run(ctx).
+class HotkeyWnd:NativeWindow{
+	public static Action OnPress;
+	protected override void WndProc(ref Message m){ if(m.Msg==0x0303&&(int)m.WParam==1){ try{ if(OnPress!=null) OnPress(); }catch{} } base.WndProc(ref m); }
 }
 
 // ============================== ТРЕЙ + UI-ЦИКЛ ==============================
@@ -3070,6 +3185,12 @@ static class Program{
 			ContextMenuStrip=menu,
 			Visible=true
 		};
+		// Глобальный хоткей Ctrl+Alt+M — быстрая форма замера
+		try{
+			HotkeyWnd hk=new HotkeyWnd(); hk.CreateHandle(new CreateParams());
+			HotkeyWnd.OnPress=OpenQuick;
+			if(!RegisterHotKey(hk.Handle,1,0x0002|0x0004,(uint)'M')) App.Log("хоткей Ctrl+Alt+M занят другим приложением");
+		} catch(Exception ex){ App.Log("hotkey: "+ex.Message); }
 		// Клик ЛКМ: будильник звонит -> остановить; иначе открыть интерфейс. Двойной клик — всегда браузер.
 		System.Windows.Forms.Timer clickTimer=new System.Windows.Forms.Timer{Interval=250};
 		bool clickPending=false;
@@ -3131,6 +3252,8 @@ static class Program{
 		App.Save();
 		return 0;
 	}
+	[System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool RegisterHotKey(IntPtr hWnd,int id,uint fsKeys,uint vk);
+	static void OpenQuick(){ try{ Process.Start(new ProcessStartInfo("http://localhost:"+App.Cfg.Port+"/q"){UseShellExecute=true}); } catch{} }
 	static void OpenBrowser(){
 		try{ Process.Start(new ProcessStartInfo("http://localhost:"+App.Cfg.Port+"/"){UseShellExecute=true}); } catch{}
 	}

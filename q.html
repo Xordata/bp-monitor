@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#2f5d8a">
+<title>Быстрый замер — Дневник АД</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<style>
+:root{color-scheme:light;--bg:#f6f6f3;--fg:#222;--card:#fff;--bd:#c9c9c4;--mut:#777;--accent:#2f5d8a;--accent-h:#27507a;--grid:#eee}
+@media (prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#14161a;--fg:#e8eaf0;--card:#1d2026;--bd:#3a3f48;--mut:#9aa3b5;--accent:#4a7fb5;--accent-h:#5d92c9;--grid:#33373f}}
+*{box-sizing:border-box}
+body{font:14px/1.4 Tahoma,Verdana,sans-serif;margin:0;background:var(--bg);color:var(--fg);max-width:420px;margin:0 auto;padding:10px}
+header{display:flex;align-items:center;gap:8px;padding:4px 0 10px}
+header b{font-size:16px;flex:1}
+a{color:var(--accent);text-decoration:none}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:6px;padding:12px}
+.row{display:flex;gap:8px;margin-bottom:10px}
+.f{flex:1;text-align:center}
+.f label{display:block;font-size:11px;color:var(--mut);margin-bottom:3px}
+input[type=number]{width:100%;font:28px Tahoma;text-align:center;padding:8px 2px;border:1px solid var(--bd);border-radius:5px;background:var(--card);color:var(--fg)}
+input[type=datetime-local],input[type=text]{width:100%;font:14px Tahoma;padding:7px;border:1px solid var(--bd);border-radius:5px;background:var(--card);color:var(--fg)}
+button{font:inherit;padding:10px 16px;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:5px;cursor:pointer;width:100%}
+button:hover{background:var(--accent-h)}
+#flash{display:none;padding:8px;border-radius:5px;margin:10px 0;color:#fff;background:#2e7d32;text-align:center}
+.today{margin-top:14px}
+.today h3{font-size:13px;color:var(--mut);margin:0 0 6px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td{padding:3px 6px;border-bottom:1px solid var(--grid)}
+td:first-child{color:var(--mut);width:52px}
+.mut{color:var(--mut);font-size:12px}
+</style>
+</head>
+<body>
+<header><b>⚡ Быстрый замер</b><a href="/">← дневник</a></header>
+<div class="card">
+  <div class="row">
+    <div class="f"><label>Верхнее</label><input id="q-sys" type="number" inputmode="numeric" min="50" max="300" autocomplete="off"></div>
+    <div class="f"><label>Нижнее</label><input id="q-dia" type="number" inputmode="numeric" min="30" max="200" autocomplete="off"></div>
+    <div class="f"><label>Пульс</label><input id="q-pulse" type="number" inputmode="numeric" min="20" max="250" autocomplete="off"></div>
+  </div>
+  <div class="row"><div class="f" style="flex:2"><label>Когда</label><input id="q-t" type="datetime-local"></div></div>
+  <div class="row"><div class="f"><label>Комментарий (необязательно)</label><input id="q-note" type="text" autocomplete="off"></div></div>
+  <button id="q-save" onclick="saveQ()">Сохранить (Enter)</button>
+  <div id="flash"></div>
+</div>
+<div class="today"><h3>Сегодня</h3><table id="q-list"></table><div class="mut" id="q-empty"></div></div>
+<script src="/i18n.js"></script>
+<script>
+function $(x){return document.getElementById(x)}
+function pad(n){return String(n).padStart(2,"0")}
+function nowLocal(){const d=new Date();return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())+"T"+pad(d.getHours())+":"+pad(d.getMinutes())}
+function getCookie(n){const m=document.cookie.match(new RegExp("(?:^|; )"+n+"=([^;]*)"));return m?decodeURIComponent(m[1]):""}
+function apiPost(p,b){return fetch(p,{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json;charset=utf-8","X-CSRF":getCookie("bpxcsrf")},body:JSON.stringify(b||{})}).then(r=>r.json()).catch(()=>({ok:false,err:"сеть"}))}
+function flash(t,ok){const f=$("flash");f.textContent=t;f.style.display="block";f.style.background=ok?"#2e7d32":"#c62828";clearTimeout(f._t);f._t=setTimeout(()=>f.style.display="none",2500)}
+let today=[];
+function renderToday(){
+  const rows=today.slice(-6).reverse().map(m=>"<tr><td>"+(m.t||"").slice(11,16)+"</td><td><b>"+m.sys+"/"+m.dia+"</b></td><td>"+tr("пульс")+" "+(m.pulse||"—")+"</td></tr>").join("");
+  $("q-list").innerHTML=rows;
+  $("q-empty").textContent=today.length?"":"пока пусто — введите значения и нажмите Enter";
+}
+function saveQ(){
+  const sys=+$("q-sys").value,dia=+$("q-dia").value,pulse=+$("q-pulse").value;
+  if(!sys||!dia){flash("Заполните верхнее и нижнее",false);return;}
+  apiPost("/api/measurement",{t:$("q-t").value||nowLocal(),sys:sys,dia:dia,pulse:pulse,note:$("q-note").value,meds:[]}).then(j=>{
+    if(j.ok){
+      flash("Сохранено ✓",true);
+      today.push({t:$("q-t").value,sys:sys,dia:dia,pulse:pulse});renderToday();
+      $("q-sys").value="";$("q-dia").value="";$("q-pulse").value="";$("q-note").value="";
+      $("q-t").value=nowLocal();$("q-sys").focus();
+    }else flash(j.err==="csrf"?"Сессия не найдена — войдите в дневник":(j.err||"Ошибка"),false);
+  });
+}
+const qOrder=["q-sys","q-dia","q-pulse","q-t","q-note"];
+qOrder.forEach((id,i)=>$(id).addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();if(i<qOrder.length-1)$(qOrder[i+1]).focus();else saveQ();}}));
+fetch("/api/state",{credentials:"same-origin"}).then(r=>{
+  if(!r.ok){location.href="/login";return Promise.reject();}
+  return r.json();
+}).then(S=>{
+  if(S.cfg&&S.cfg.Lang)loadLang(S.cfg.Lang);
+  const day=new Date().getFullYear()+"-"+pad(new Date().getMonth()+1)+"-"+pad(new Date().getDate());
+  today=(S.measurements||[]).filter(m=>(m.T||"").startsWith(day)).map(m=>({t:m.t||m.T,sys:m.Sys,dia:m.Dia,pulse:m.Pulse}));
+  renderToday();
+  $("q-t").value=nowLocal();
+  $("q-sys").focus();
+}).catch(()=>{});
+</script>
+</body>
+</html>

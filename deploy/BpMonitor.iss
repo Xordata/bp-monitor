@@ -87,6 +87,7 @@ Name: "desktopicon"; Description: "{cm:desktopiconDesc}"; GroupDescription: "{cm
 Source: "..\bin\Release\net481\BpMonitor.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\bin\Release\net481\BpMonitor.exe.config"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\bin\Release\net481\index.html"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\bin\Release\net481\q.html"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\bin\Release\net481\help.html"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\bin\Release\net481\i18n.js"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\bin\Release\net481\lang\*"; DestDir: "{app}\lang"; Flags: ignoreversion
