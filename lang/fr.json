@@ -414,5 +414,21 @@
  "Пора измерить давление.": "Il est temps de mesurer votre tension.",
  "Пора принять: ": "Il est temps de prendre : ",
  "Отметьте приём во вкладке «Лекарства».": "Marquez la prise dans l'onglet Médicaments.",
- "порт": "port"
+ "порт": "port",
+ "Будильник остановлен автоматически (нет реакции 15 мин)": "Réveil arrêté automatiquement (aucune réaction pendant 15 min)",
+ "Будильник остановлен": "Réveil arrêté",
+ "прогноз": "prévision",
+ "внимание": "attention",
+ "— впишите новый токен в настройках": "— saisissez un nouveau jeton dans les paramètres",
+ "Прогноз личной модели на ~": "Prévision du modèle personnel sur ~",
+ "мм рт.ст.": "mmHg",
+ "(норма ≤": "(norme ≤",
+ "Условия похожи на те, при которых у вас росло давление — измерьте заранее.": "Les conditions ressemblent à celles où votre tension augmentait — mesurez à l'avance.",
+ "Прогнозируется геомагнитная активность Kp": "Activité géomagnétique Kp prévue",
+ "Внимание! Обнаружены внешние условия, схожие с повышением давления.": "Attention ! Des conditions externes similaires à une hausse de tension ont été détectées.",
+ "Прогноз (личная модель):": "Prévision (modèle personnel) :",
+ "Погода:": "Météo :",
+ "Рекомендуется выполнить измерение.": "Il est recommandé d'effectuer une mesure.",
+ "Координаты сохранены": "Coordonnées enregistrées",
+ "Координаты подставлены — нажмите «Сохранить»": "Coordonnées insérées — cliquez sur « Enregistrer »"
 }

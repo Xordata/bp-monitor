@@ -401,7 +401,7 @@ async function loadState(){
     else await loadLang(S.cfg.Lang);
   }
   renderHeader();
-  if(act!=="cfg")renderActive(); // не затираем форму настроек во время ввода
+  if(act!=="cfg")renderActive();else fillCfg(); // форму в модалке не затираем, но сводку карточек обновляем всегда
 }
 setInterval(loadState,30000);
 
@@ -1021,7 +1021,8 @@ async function geoFind(){
   window.__geo=rs;
   box.innerHTML=rs.map((r,i)=>`<button onclick="geoPick(${i})">${esc(r.n)}${r.a?", "+esc(r.a):""}</button>`).join("");
 }
-function geoPick(i){const r=window.__geo[i];$("c-lat").value=r.lat;$("c-lon").value=r.lon;$("geo-res").innerHTML="";flash("Координаты подставлены — нажмите «Сохранить»");}
+function geoPick(i){const r=window.__geo[i];$("c-lat").value=r.lat;$("c-lon").value=r.lon;$("geo-res").innerHTML="";
+  S.cfg.Lat=r.lat;S.cfg.Lon=r.lon;apiPost("/api/config",{Lat:r.lat,Lon:r.lon}).then(j=>{flash(j.ok?"Координаты сохранены":(j.err||"Ошибка"),!!j.ok);loadState();});}
 function saveCfgGen(){const c=S.cfg;c.Port=+$("c-port").value||c.Port;c.Lat=+$("c-lat").value;c.Lon=+$("c-lon").value;c.PollMin=+$("c-poll").value;
   c.AlarmFile=$("c-alarm").value.trim();c.AlarmAheadMin=+$("c-ahead").value||0;postCfg();}
 function openCfgUser(){

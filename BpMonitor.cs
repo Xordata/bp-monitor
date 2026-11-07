@@ -1509,11 +1509,11 @@ static class App{
 				D.LastPopup=DateTime.Now;
 				AppendPopup();
 				int inH=Math.Max(1,(int)Math.Round((pt-now).TotalHours));
-				string msg="Прогноз личной модели на ~"+inH+" ч: "+sys.ToString("0")+" / "+dia.ToString("0")+" мм рт.ст."
-					+" (норма ≤ "+Cfg.NormSys+" / "+Cfg.NormDia+").\r\nУсловия похожи на те, при которых у вас росло давление — измерьте заранее."
-					+(o["kp"]!=null&&(double)o["kp"]>=5?"\r\nПрогнозируется геомагнитная активность Kp "+((double)o["kp"]).ToString("0.0")+".":"");
+				string msg=LangPacks.Tr(Cfg.Lang,"Прогноз личной модели на ~")+inH+" "+LangPacks.Tr(Cfg.Lang,"ч")+": "+sys.ToString("0")+" / "+dia.ToString("0")+" "+LangPacks.Tr(Cfg.Lang,"мм рт.ст.")
+					+" "+LangPacks.Tr(Cfg.Lang,"(норма ≤")+" "+Cfg.NormSys+" / "+Cfg.NormDia+").\r\n"+LangPacks.Tr(Cfg.Lang,"Условия похожи на те, при которых у вас росло давление — измерьте заранее.")
+					+(o["kp"]!=null&&(double)o["kp"]>=5?"\r\n"+LangPacks.Tr(Cfg.Lang,"Прогнозируется геомагнитная активность Kp")+" "+((double)o["kp"]).ToString("0.0")+".":"");
 				NotifyIcon ni=Program.TrayIcon;
-				ni?.ShowBalloonTip(10000,"BpMonitor — прогноз",msg,ToolTipIcon.Warning);
+				ni?.ShowBalloonTip(10000,"BpMonitor — "+LangPacks.Tr(Cfg.Lang,"прогноз"),msg,ToolTipIcon.Warning);
 				break;
 			}
 		} catch(Exception ex){ Log("PopupForecast: "+ex.Message); }
@@ -1528,9 +1528,11 @@ static class App{
 			if(!(p.sys>Cfg.NormSys)&&!(p.dia>Cfg.NormDia)) return;
 			D.LastPopup=DateTime.Now;
 			AppendPopup();
-			string msg="Внимание! Обнаружены внешние условия, схожие с повышением давления.\r\n"+$"Прогноз (личная модель): {p.sys:0} / {p.dia:0} мм рт.ст. (норма ≤ {Cfg.NormSys} / {Cfg.NormDia})\r\n"+$"Погода: {Weather.Text}, {Weather.PressMm?.ToString("0")} мм рт.ст., {Weather.TempC?.ToString("0")}°C. Рекомендуется выполнить измерение.";
+			string msg=LangPacks.Tr(Cfg.Lang,"Внимание! Обнаружены внешние условия, схожие с повышением давления.")+"\r\n"
+				+LangPacks.Tr(Cfg.Lang,"Прогноз (личная модель):")+$" {p.sys:0} / {p.dia:0} "+LangPacks.Tr(Cfg.Lang,"мм рт.ст.")+" "+LangPacks.Tr(Cfg.Lang,"(норма ≤")+$" {Cfg.NormSys} / {Cfg.NormDia})\r\n"
+				+LangPacks.Tr(Cfg.Lang,"Погода:")+$" {Weather.Text}, {Weather.PressMm?.ToString("0")} "+LangPacks.Tr(Cfg.Lang,"мм рт.ст.")+$", {Weather.TempC?.ToString("0")}°C. "+LangPacks.Tr(Cfg.Lang,"Рекомендуется выполнить измерение.");
 			NotifyIcon ni=Program.TrayIcon;
-			ni?.ShowBalloonTip(10000,"BpMonitor — внимание",msg,ToolTipIcon.Warning);
+			ni?.ShowBalloonTip(10000,"BpMonitor — "+LangPacks.Tr(Cfg.Lang,"внимание"),msg,ToolTipIcon.Warning);
 		} catch{}
 		}
 	}
@@ -1602,6 +1604,7 @@ static class App{
 			_player=new WaveOutEvent();
 			_player.Init(_loop);
 			_player.Play();
+			_ringStartUtc=DateTime.UtcNow;
 		} catch{}
 	}
 	public static void StopAlarm(){
@@ -1619,6 +1622,8 @@ static class App{
 	static readonly HashSet<string> Fired=new HashSet<string>();
 	static readonly HashSet<string> Announced=new HashSet<string>();
 	public static bool AlarmRinging=>_player!=null;
+	static DateTime _ringStartUtc=DateTime.MinValue;// для авто-стопа: нет реакции 15 мин — тишина
+	public const int RingMaxMin=15;
 	// должен ли будильник сработать сегодня с учётом расписания
 	static bool FireToday(AlarmDef a,DateTime now){
 		switch(a.Mode){
@@ -1637,6 +1642,7 @@ static class App{
 		}
 	}
 	public static void CheckAlarms(NotifyIcon ni){
+		if(_player!=null&&DateTime.UtcNow-_ringStartUtc>=TimeSpan.FromMinutes(RingMaxMin)){ StopAlarm(); try{ ni?.ShowBalloonTip(4000,"BpMonitor",LangPacks.Tr(Cfg.Lang,"Будильник остановлен автоматически (нет реакции 15 мин)"),ToolTipIcon.Info); }catch{} }
 		DateTime now=DateTime.Now;
 		string today=now.ToString("yyyyMMdd");
 		Fired.RemoveWhere(k=>!k.StartsWith(today));// чистим вчерашние ключи
@@ -2138,7 +2144,9 @@ static class App{
 						return;
 					}
 					case"/api/geo":{// геокодинг города (photon.komoot.io, OSM) — как серверный /api/geo
-						string gq=(ctx.Request.QueryString["q"]??"").Trim();
+						// HttpListener.QueryString портит не-ASCII (кириллица -> мусор), парсим RawUrl вручную по UTF-8
+					string gq="";{string rq=ctx.Request.RawUrl;int qi=rq.IndexOf('?');if(qi>=0){foreach(var p in rq.Substring(qi+1).Split('&')){int eq=p.IndexOf('=');if(eq>0&&p.Substring(0,eq)=="q")gq=Uri.UnescapeDataString(p.Substring(eq+1));}}}
+					gq=gq.Trim();
 						if(gq.Length<2||gq.Length>80){ Respond(ctx.Response,400,"application/json; charset=utf-8",Encoding.UTF8.GetBytes("{\"ok\":false,\"err\":\"q\"}")); return; }
 						try{
 							using(var hc=new HttpClient{Timeout=TimeSpan.FromSeconds(8)}){
@@ -2854,7 +2862,7 @@ static class App{
 			if(Interlocked.CompareExchange(ref _busy,1,0)!=0) return;
 			Task.Run(()=>{
 				try{ LastPhase="push"; Push(); LastPhase="pull"; Pull(); C.lastErr=""; }
-				catch(UnauthorizedAccessException ex){ C.lastErr=ex.Message; try{ NotifyIcon ni=Program.TrayIcon; ni?.ShowBalloonTip(8000,"BpMonitor — синхронизация",ex.Message+" — впишите новый токен в настройках",ToolTipIcon.Warning); }catch{} }
+				catch(UnauthorizedAccessException ex){ C.lastErr=ex.Message; try{ NotifyIcon ni=Program.TrayIcon; ni?.ShowBalloonTip(8000,"BpMonitor — синхронизация",ex.Message+" "+LangPacks.Tr(Cfg.Lang,"— впишите новый токен в настройках"),ToolTipIcon.Warning); }catch{} }
 				catch(Exception ex){ C.lastErr=ex.Message; Log("sync: ["+LastPhase+"] "+ex.GetType().Name+": "+ex.Message+" | inner: "+(ex.InnerException!=null?ex.InnerException.GetType().Name+": "+ex.InnerException.Message:"-")+" | "+(ex.StackTrace!=null?ex.StackTrace.Split('\n')[0]:"")); }
 				SaveCur();
 				Interlocked.Exchange(ref _busy,0);
@@ -3206,7 +3214,7 @@ static class Program{
 			clickTimer.Stop();clickPending=false;
 			if(App.AlarmRinging){
 				App.StopAlarm();
-				TrayIcon.ShowBalloonTip(2000,"BpMonitor","Будильник остановлен",ToolTipIcon.Info);
+				TrayIcon.ShowBalloonTip(2000,"BpMonitor",LangPacks.Tr(App.Cfg.Lang,"Будильник остановлен"),ToolTipIcon.Info);
 			}
 			else OpenBrowser();
 		};

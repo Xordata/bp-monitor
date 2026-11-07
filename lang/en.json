@@ -414,5 +414,21 @@
  "Пора измерить давление.": "Time to measure your blood pressure.",
  "Пора принять: ": "Time to take: ",
  "Отметьте приём во вкладке «Лекарства».": "Mark the intake in the 'Medications' tab.",
- "порт": "port"
+ "порт": "port",
+ "Будильник остановлен автоматически (нет реакции 15 мин)": "Alarm stopped automatically (no response for 15 min)",
+ "Будильник остановлен": "Alarm stopped",
+ "прогноз": "forecast",
+ "внимание": "attention",
+ "— впишите новый токен в настройках": "— enter a new token in settings",
+ "Прогноз личной модели на ~": "Personal model forecast for ~",
+ "мм рт.ст.": "mmHg",
+ "(норма ≤": "(normal ≤",
+ "Условия похожи на те, при которых у вас росло давление — измерьте заранее.": "Conditions resemble those when your blood pressure rose — measure in advance.",
+ "Прогнозируется геомагнитная активность Kp": "Geomagnetic activity Kp is forecast",
+ "Внимание! Обнаружены внешние условия, схожие с повышением давления.": "Attention! External conditions similar to a blood pressure rise were detected.",
+ "Прогноз (личная модель):": "Forecast (personal model):",
+ "Погода:": "Weather:",
+ "Рекомендуется выполнить измерение.": "It is recommended to take a measurement.",
+ "Координаты сохранены": "Coordinates saved",
+ "Координаты подставлены — нажмите «Сохранить»": "Coordinates filled in — press “Save”"
 }
