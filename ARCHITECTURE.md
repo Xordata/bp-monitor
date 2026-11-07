@@ -1,6 +1,6 @@
 ﻿# ARCHITECTURE — BpMonitor
 
-Версия приложения: 2.0. Стек: .NET Framework 4.8.1, C# 7.3 (`LangVersion` закреплён), WinForms (только трей/балюны), `HttpListener` (поверх http.sys), Newtonsoft.Json, NAudio (mp3), MiniExcel (экспорт). Один исходник `BpMonitor.cs` (~3170 строк) + одностраничник `index.html` + страница-инструкция `help.html` (общая с bp.xor.world, раздаётся по `/help`).
+Версия приложения: 2.0. Стек: .NET Framework 4.8.1, C# 7.3 (`LangVersion` закреплён), WinForms (только трей/балюны), `HttpListener` (поверх http.sys), Newtonsoft.Json, NAudio (mp3), MiniExcel (экспорт). Один исходник `BpMonitor.cs` (~3300 строк) + одностраничник `index.html` + страница-инструкция `help.html` (общая с bp.xor.world, раздаётся по `/help`).
 
 ## Верхнеуровневая схема
 
@@ -44,7 +44,7 @@
 | **Контекст** | `EmotionAt/NoiseAt/SleepAt/SleepQualityAt` (окна join для НН), `Snapshot/SnapshotContext` |
 | **Перенос** | `ExportAll()/ImportAll()` — единый JSON (cfg+данные+НН+medpk), `GET /api/export/all` / `POST /api/import/all` (preimport-архив перед заменой) |
 | **Синхронизация** | `SyncLayer` — дельта-синхрон с bp.xor.world: курсоры/`Pulled`-диапазоны в `data/sync.json`, `EncodeDelta/ApplyDelta` (LWW по серверному seq, тумстоуны, echo-подавление по хэшу содержимого + `Dead`-множество), транспорт `Hc` (Bearer-токен, 60 с таймаут), `StatusJson`/`RunAsync` для UI и таймера трея |
-| **Будильники** | `CheckAlarms` (окно догона 30 мин, напоминания), `StartAlarm/StopAlarm` (NAudio) |
+| **Будильники** | `CheckAlarms` (окно догона 30 мин, напоминания, авто-стоп звука `RingMaxMin`=15 мин без реакции), `StartAlarm/StopAlarm` (NAudio) |
 | **HTTP** | `Handle(ctx)` — роут по `switch(path)`, `JsonResp`, `IsLocalSameOrigin` |
 | **Program** | мьютекс single-instance, трей, автозапуск (HKCU\...\Run), таймеры |
 
@@ -107,7 +107,7 @@ POST /api/measurement {t,sys,dia,pulse,note,meds[]}
 
 ## Будильники
 
-`CheckAlarms()` каждый тик: для включённых будильников вычисляется `target` сегодня; проверка `FireToday` по `Mode`: `daily` | `days` (ISO-дни в `Days[]`) | `everyN` ((день−Anchor).Days % EveryN == 0, Anchor `yyyyMMdd` фиксируется при первом срабатывании). Срабатывание в окне `[target, target+30 мин]` (догон после сна), ключ дежурства `дата_индекс_время` в памяти. `AlarmAheadMin` — балюн-превью. Звук: `WaveOutFile` NAudio зацикленно; стоп — клик по трею или `/api/alarm/stop`.
+`CheckAlarms()` каждый тик: для включённых будильников вычисляется `target` сегодня; проверка `FireToday` по `Mode`: `daily` | `days` (ISO-дни в `Days[]`) | `everyN` ((день−Anchor).Days % EveryN == 0, Anchor `yyyyMMdd` фиксируется при первом срабатывании). Срабатывание в окне `[target, target+30 мин]` (догон после сна), ключ дежурства `дата_индекс_время` в памяти. `AlarmAheadMin` — балюн-превью. Звук: `WaveOutFile` NAudio зацикленно; стоп — клик по трею, `/api/alarm/stop` или автоматически через `RingMaxMin` (15 мин без реакции — `StartAlarm` помнит `_ringStartUtc`, `CheckAlarms` гасит звук и шлёт балюн). Все трей-балюны (будильники, лекарства, прогнозы, popup, синхронизация) локализованы через `LangPacks.Tr(Cfg.Lang, …)`.
 
 ## Безопасность
 
@@ -134,4 +134,4 @@ dotnet build                    # net481, требует .NET Framework 4.8.1 ta
 bin\Debug\net481\BpMonitor.exe  # index.html, help.html, alarm.mp3, app.ico копируются в bin (csproj PreserveNewest)
 ```
 
-Правки только HTML подхватываются на лету (файл читается на каждый запрос) — достаточно скопировать `index.html` в `bin\Debug\net481\`. Правки C# требуют kill+build+restart. Git-репозиторий заведён (`bin/`, `obj/`, `data/`, `config.json`, `backups/` в `.gitignore`). Тесты: `BpMonitor.exe --selftest` — 20 проверок ядра в песочнице (см. `App.SelfTest`); ручная проверка UI делалась через браузер-автоматизацию.
+Правки только HTML подхватываются на лету (файл читается на каждый запрос) — достаточно скопировать `index.html` в `bin\Debug\net481\`. Правки C# требуют kill+build+restart. Git-репозиторий заведён (`bin/`, `obj/`, `data/`, `config.json`, `backups/` в `.gitignore`). Тесты: `BpMonitor.exe --selftest` — 21 проверка ядра в песочнице (см. `App.SelfTest`); ручная проверка UI делалась через браузер-автоматизацию.
