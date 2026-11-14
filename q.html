@@ -44,6 +44,7 @@ td:first-child{color:var(--mut);width:52px}
   <div class="row"><div class="f" style="flex:2"><label>Когда</label><input id="q-t" type="datetime-local"></div></div>
   <div class="row"><div class="f"><label>Комментарий (необязательно)</label><input id="q-note" type="text" autocomplete="off"></div></div>
   <button id="q-save" onclick="saveQ()">Сохранить (Enter)</button>
+  <div class="mut" id="q-def" style="margin-top:8px;text-align:center"></div>
   <div id="flash"></div>
 </div>
 <div class="today"><h3>Сегодня</h3><table id="q-list"></table><div class="mut" id="q-empty"></div></div>
@@ -55,7 +56,7 @@ function nowLocal(){const d=new Date();return d.getFullYear()+"-"+pad(d.getMonth
 function getCookie(n){const m=document.cookie.match(new RegExp("(?:^|; )"+n+"=([^;]*)"));return m?decodeURIComponent(m[1]):""}
 function apiPost(p,b){return fetch(p,{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json;charset=utf-8","X-CSRF":getCookie("bpxcsrf")},body:JSON.stringify(b||{})}).then(r=>r.json()).catch(()=>({ok:false,err:"сеть"}))}
 function flash(t,ok){const f=$("flash");f.textContent=t;f.style.display="block";f.style.background=ok?"#2e7d32":"#c62828";clearTimeout(f._t);f._t=setTimeout(()=>f.style.display="none",2500)}
-let today=[];
+let today=[];let CFG=null;
 function renderToday(){
   const rows=today.slice(-6).reverse().map(m=>"<tr><td>"+(m.t||"").slice(11,16)+"</td><td><b>"+m.sys+"/"+m.dia+"</b></td><td>"+tr("пульс")+" "+(m.pulse||"—")+"</td></tr>").join("");
   $("q-list").innerHTML=rows;
@@ -64,7 +65,9 @@ function renderToday(){
 function saveQ(){
   const sys=+$("q-sys").value,dia=+$("q-dia").value,pulse=+$("q-pulse").value;
   if(!sys||!dia){flash("Заполните верхнее и нижнее",false);return;}
-  apiPost("/api/measurement",{t:$("q-t").value||nowLocal(),sys:sys,dia:dia,pulse:pulse,note:$("q-note").value,meds:[]}).then(j=>{
+  const body={t:$("q-t").value||nowLocal(),sys:sys,dia:dia,pulse:pulse,note:$("q-note").value,meds:[]};
+  if(CFG&&CFG.DefPos>=0)body.posArm=CFG.DefPos*4+(CFG.DefArm>=0?CFG.DefArm:2);
+  apiPost("/api/measurement",body).then(j=>{
     if(j.ok){
       flash("Сохранено ✓",true);
       today.push({t:$("q-t").value,sys:sys,dia:dia,pulse:pulse});renderToday();
@@ -79,7 +82,10 @@ fetch("/api/state",{credentials:"same-origin"}).then(r=>{
   if(!r.ok){location.href="/login";return Promise.reject();}
   return r.json();
 }).then(S=>{
+  CFG=S.cfg||{};
   if(S.cfg&&S.cfg.Lang)loadLang(S.cfg.Lang);
+  if(CFG.DefPos>=0){const pos=["сидя","стоя","лёжа"][CFG.DefPos];const arms=["левая","правая","не указано"];
+    $("q-def").textContent=tr("Поза")+": "+tr(pos)+(CFG.DefArm>=0?" · "+tr("Рука")+": "+tr(arms[CFG.DefArm]):"");}
   const day=new Date().getFullYear()+"-"+pad(new Date().getMonth()+1)+"-"+pad(new Date().getDate());
   today=(S.measurements||[]).filter(m=>(m.T||"").startsWith(day)).map(m=>({t:m.t||m.T,sys:m.Sys,dia:m.Dia,pulse:m.Pulse}));
   renderToday();

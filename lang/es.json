@@ -462,5 +462,7 @@
  "название — поиск": "nombre — buscar",
  "Укажите название города": "Indique el nombre de la ciudad",
  "Геокодер недоступен": "geocodificador no disponible",
- "Не найдено": "no encontrado"
+ "Не найдено": "no encontrado",
+ "Поза по умолчанию": "Postura predeterminada",
+ "Рука по умолчанию": "Brazo predeterminado"
 }

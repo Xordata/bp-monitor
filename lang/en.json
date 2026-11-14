@@ -462,5 +462,7 @@
  "название — поиск": "name — search",
  "Укажите название города": "Enter a city name",
  "Геокодер недоступен": "geocoder unavailable",
- "Не найдено": "not found"
+ "Не найдено": "not found",
+ "Поза по умолчанию": "Default posture",
+ "Рука по умолчанию": "Default arm"
 }

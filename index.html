@@ -404,6 +404,11 @@ async function loadState(){
   if(act!=="cfg")renderActive();else fillCfg(); // форму в модалке не затираем, но сводку карточек обновляем всегда
 }
 setInterval(loadState,30000);
+/* свежие данные при возврате на вкладку (например после «быстрого ввода» в другой вкладке) */
+let _lastShownRefresh=0;
+function refreshOnShown(){const n=Date.now();if(n-_lastShownRefresh>1500){_lastShownRefresh=n;loadState();}}
+window.addEventListener("focus",refreshOnShown);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)refreshOnShown();});
 
 function renderHeader(){
   const w=S.weather||{};
@@ -467,7 +472,12 @@ function openModal(title,html){$("mtitle").textContent=title;$("mbody").innerHTM
 function closeModal(){$("mbg").classList.remove("on");$("mbody").innerHTML="";$("mbody").onkeydown=null;}
 $("mbg").addEventListener("click",e=>{if(e.target===e.currentTarget)closeModal();});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("mbg").classList.contains("on"))closeModal();});
-const enterSave=fn=>e=>{if(e.key==="Enter"&&e.target.tagName!=="BUTTON"){e.preventDefault();fn();}};
+/* Enter в форме замера: переход по полям в порядке ввода, на последнем — сохранение (как в быстром вводе) */
+const mOrder=["m-t","m-sys","m-dia","m-pulse","m-pos","m-arm","m-note"];
+const enterSave=fn=>e=>{if(e.key==="Enter"&&e.target.tagName!=="BUTTON"){e.preventDefault();
+  const i=mOrder.indexOf(e.target.id);
+  if(i>=0&&i<mOrder.length-1){const nx=$(mOrder[i+1]);nx.focus();if(nx.tagName==="INPUT")nx.select();}
+  else fn();}};
 
 function renderMeas(){
   const today=new Date().toDateString();
@@ -478,8 +488,8 @@ function renderMeas(){
       `<td><button onclick="editM('${m.Id}')">изм</button> <button onclick="delM('${m.Id}')">✕</button></td></tr>`
     ).join("")||'<tr><td colspan="6" class="mut">сегодня измерений нет</td></tr>';
 }
-function posOpts(m){const cur=(m&&m.PosArm!=null)?Math.floor(m.PosArm/4):-1;return '<option value="">—</option>'+["сидя","стоя","лёжа"].map((x,i)=>`<option value="${i}"${i===cur?" selected":""}>${x}</option>`).join("");}
-function armOpts(m){const cur=(m&&m.PosArm!=null)?m.PosArm%4:-1;return '<option value="">—</option>'+["левая","правая"].map((x,i)=>`<option value="${i}"${i===cur?" selected":""}>${x}</option>`).join("")+`<option value="2"${cur===2?" selected":""}>не указано</option>`;}
+function posOpts(m){const cur=(m&&m.PosArm!=null)?Math.floor(m.PosArm/4):(m?-1:(S&&S.cfg&&S.cfg.DefPos>=0?S.cfg.DefPos:-1));return '<option value="">—</option>'+["сидя","стоя","лёжа"].map((x,i)=>`<option value="${i}"${i===cur?" selected":""}>${x}</option>`).join("");}
+function armOpts(m){const cur=(m&&m.PosArm!=null)?m.PosArm%4:(m?-1:(S&&S.cfg&&S.cfg.DefArm>=0?S.cfg.DefArm:-1));return '<option value="">—</option>'+["левая","правая"].map((x,i)=>`<option value="${i}"${i===cur?" selected":""}>${x}</option>`).join("")+`<option value="2"${cur===2?" selected":""}>не указано</option>`;}
 function measFormHtml(m){
   const meds=S.cfg.Meds||[];
   return `<div class="grid">
@@ -1009,6 +1019,8 @@ function openCfgGen(){
     <label>Опрос погоды, мин <input type="number" id="c-poll" style="width:60px" value="${c.PollMin}"></label>
     <label>mp3-файл (рядом с программой) <input id="c-alarm" style="width:140px" value="${esc(c.AlarmFile||"")}"></label>
     <label>Напоминать, мин до <input type="number" id="c-ahead" style="width:60px" value="${c.AlarmAheadMin}"></label>
+    <label>Поза по умолчанию <select id="c-defpos" style="width:110px"><option value="-1"${(c.DefPos??-1)<0?" selected":""}>—</option>${[["0","сидя"],["1","стоя"],["2","лёжа"]].map(v=>`<option value="${v[0]}"${c.DefPos==v[0]?" selected":""}>${v[1]}</option>`).join("")}</select></label>
+    <label>Рука по умолчанию <select id="c-defarm" style="width:110px"><option value="-1"${(c.DefArm??-1)<0?" selected":""}>—</option>${[["0","левая"],["1","правая"],["2","не указано"]].map(v=>`<option value="${v[0]}"${c.DefArm==v[0]?" selected":""}>${v[1]}</option>`).join("")}</select></label>
   </div><div class="grid" id="geo-res" style="margin-top:6px"></div><p class="mut">После смены порта нужно перезапустить приложение (Выход в трее и запуск снова).</p>
   <div class="grid" style="margin-top:10px"><button class="primary" onclick="saveCfgGen()">Сохранить</button></div>`);
 }
@@ -1024,7 +1036,8 @@ async function geoFind(){
 function geoPick(i){const r=window.__geo[i];$("c-lat").value=r.lat;$("c-lon").value=r.lon;$("geo-res").innerHTML="";
   S.cfg.Lat=r.lat;S.cfg.Lon=r.lon;apiPost("/api/config",{Lat:r.lat,Lon:r.lon}).then(j=>{flash(j.ok?"Координаты сохранены":(j.err||"Ошибка"),!!j.ok);loadState();});}
 function saveCfgGen(){const c=S.cfg;c.Port=+$("c-port").value||c.Port;c.Lat=+$("c-lat").value;c.Lon=+$("c-lon").value;c.PollMin=+$("c-poll").value;
-  c.AlarmFile=$("c-alarm").value.trim();c.AlarmAheadMin=+$("c-ahead").value||0;postCfg();}
+  c.AlarmFile=$("c-alarm").value.trim();c.AlarmAheadMin=+$("c-ahead").value||0;
+  c.DefPos=$("c-defpos")?+$("c-defpos").value:-1;c.DefArm=$("c-defarm")?+$("c-defarm").value:-1;postCfg();}
 function openCfgUser(){
   const c=S.cfg;
   openModal("Пользователь",`<div class="grid">

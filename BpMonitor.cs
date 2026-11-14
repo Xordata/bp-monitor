@@ -103,6 +103,8 @@ public class Config{
 	public int NormSys=135,NormDia=85;// "норма": прогноз выше -> popup
 	public string Dob="";// дата рождения пользователя yyyy-MM-dd (фича НН "возраст"); пусто = не указан
 	public string Sex="";// пол: "m"|"f" (фича НН "пол"); пусто = не указан
+	public int DefPos=-1;// поза по умолчанию: -1=нет, 0=сидя,1=стоя,2=лёжа (подставляется в быстрый ввод и новую форму)
+	public int DefArm=-1;// рука по умолчанию: -1=нет, 0=левая,1=правая,2=не указано
 	public int PopupCooldownMin=120;// пауза между popup
 	public bool SyncOn=false;// синхронизация с bp.xor.world (Фаза 7)
 	public string SyncUrl="https://bp.xor.world";
