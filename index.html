@@ -232,7 +232,7 @@ canvas{max-width:100%;border:1px solid var(--bd);background:var(--canvas)}
       <div class="grid"><button class="primary" onclick="openDb()">＋ В справочник</button></div>
       <div style="margin-top:8px;max-height:280px;overflow:auto"><table id="db-t"><thead><tr><th>Название</th><th>T½, ч</th><th>Действие, ч</th><th>Аннотация</th><th></th></tr></thead><tbody></tbody></table></div>
       <p class="mut" style="margin:6px 0 0">Хранится в <code>medpk.json</code> рядом с программой — правится без пересборки (или редактированием файла). Используется, когда у лекарства нет персонального переопределения в таблице выше.</p>
-      <p class="mut" style="margin:2px 0 0">Встроенные записи справочника (по умолчанию) удалить нельзя — только править; удалять можно только добавленные вручную. Аннотация — только по-русски.</p>
+      <p class="mut" style="margin:2px 0 0">Встроенные записи справочника (по умолчанию) удалить нельзя — только править; удалять можно только добавленные вручную. Готовые аннотации к встроенным записям — справочные, на русском; свои аннотации — на любом языке.</p>
     </section>
   </div>
 
@@ -939,23 +939,22 @@ async function delMedTake(id){if(!confirm("Удалить отметку при�
 /* справочник ФК (medpk.json) */
 function dbRows(){return Object.entries(S.medPkDb||{}).sort((a,b)=>a[0].localeCompare(b[0],"ru"));}
 function isBuiltinDb(k){return (S.medPkBuiltin||[]).indexOf(k)>=0;}
-function noteOk(s){s=(s||"").trim();if(!s)return true;if(s.length>300)return false;if(!/[а-яёА-ЯЁ]/.test(s))return false;return !/[A-Za-z]{2,}/.test(s);}
 function renderDb(){
   document.querySelector("#db-t tbody").innerHTML=dbRows().map(([k,v],i)=>
     `<tr><td${v[2]?` title="${esc(v[2])}"`:""}>${esc(k)}</td>`+
     `<td><input type="number" step="0.5" min="0.25" style="width:64px" value="${v[0]}" onchange="dbSet(${i},0,this.value)"></td>`+
     `<td><input type="number" step="1" min="0.5" style="width:70px" value="${v[1]}" onchange="dbSet(${i},1,this.value)"></td>`+
-    `<td><input style="width:170px" value="${esc(v[2]||"")}" placeholder="${tr("по-русски")}" title="${tr("Аннотация")}" onchange="dbSetNote(${i},this.value)"></td>`+
+    `<td><input style="width:170px" value="${esc(v[2]||"")}" title="${tr("Аннотация")}" onchange="dbSetNote(${i},this.value)"></td>`+
     `<td>${isBuiltinDb(k)?`<span class="mut" title="${tr("справочное значение по умолчанию — удаление недоступно")}">🔒</span>`:`<button onclick="dbDel(${i})" title="убрать из справочника">✕</button>`}</td></tr>`).join("");
 }
-function dbSetNote(i,v){const r=dbRows()[i];if(!r)return;const s=v.trim();if(!noteOk(s)){flash(tr("Аннотация должна быть только по-русски"),false);return loadState();}const a=S.medPkDb[r[0]];if(s){if(a.length>2)a[2]=s;else a.push(s);}else if(a.length>2)a.length=2;postDb();}
+function dbSetNote(i,v){const r=dbRows()[i];if(!r)return;let s=v.trim();if(s.length>500)s=s.slice(0,500);const a=S.medPkDb[r[0]];if(s){if(a.length>2)a[2]=s;else a.push(s);}else if(a.length>2)a.length=2;postDb();}
 function dbSet(i,f,v){const r=dbRows()[i];if(!r)return;if(!(+v>0))return loadState();S.medPkDb[r[0]][f]=+v;postDb();}
 function openDb(){
   openModal("Добавить в справочник ФК",`<div class="grid">
     <input id="db-name" style="width:180px" placeholder="МНН или бренд">
     <input id="db-half" type="number" step="0.5" min="0.25" style="width:70px" placeholder="T½ ч">
     <input id="db-dur" type="number" step="1" min="0.5" style="width:90px" placeholder="действие ч">
-    <input id="db-note" style="width:260px" placeholder="${tr("Аннотация")} (${tr("по-русски")})">
+    <input id="db-note" style="width:260px" placeholder="${tr("Аннотация")}">
     <button class="primary" onclick="dbAdd()">Сохранить (Enter)</button>
   </div>`);
   $("mbody").onkeydown=enterSave(dbAdd);
@@ -964,7 +963,7 @@ function dbAdd(){
   const n=normMd($("db-name").value),h=+$("db-half").value,d=+$("db-dur").value,note=$("db-note").value.trim();
   if(!n){flash("Введите название",false);return;}
   if(!(h>0)||!(d>0)){flash("Укажите T½ и длительность действия",false);return;}
-  if(!noteOk(note)){flash(tr("Аннотация должна быть только по-русски"),false);return;}
+  if(note.length>500){flash(tr("Аннотация слишком длинная (до 500 символов)"),false);return;}
   S.medPkDb[n]=note?[h,d,note]:[h,d];closeModal();postDb();
 }
 function dbDel(i){const r=dbRows()[i];if(!r||isBuiltinDb(r[0])||!confirm("Удалить «"+r[0]+"» из справочника?"))return;delete S.medPkDb[r[0]];postDb();}

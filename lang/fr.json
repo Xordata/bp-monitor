@@ -466,9 +466,8 @@
  "Поза по умолчанию": "Posture par défaut",
  "Рука по умолчанию": "Bras par défaut",
  "Аннотация": "Annotation",
- "по-русски": "en russe",
  "справочное значение по умолчанию — удаление недоступно": "entrée de référence par défaut — suppression impossible",
- "Аннотация должна быть только по-русски": "L'annotation doit être uniquement en russe",
- "Встроенные записи справочника (по умолчанию) удалить нельзя — только править; удалять можно только добавленные вручную. Аннотация — только по-русски.": "Les entrées de référence intégrées (par défaut) ne peuvent pas être supprimées — seulement modifiées ; seules les entrées ajoutées manuellement peuvent être supprimées. L'annotation est en russe uniquement.",
- "Наведение на название лекарства показывает аннотацию из справочника.": "Survolez le nom d'un médicament pour voir son annotation de référence."
+ "Наведение на название лекарства показывает аннотацию из справочника.": "Survolez le nom d'un médicament pour voir son annotation de référence.",
+ "Встроенные записи справочника (по умолчанию) удалить нельзя — только править; удалять можно только добавленные вручную. Готовые аннотации к встроенным записям — справочные, на русском; свои аннотации — на любом языке.": "Les entrées de référence intégrées (par défaut) ne peuvent pas être supprimées — seulement modifiées ; seules les entrées ajoutées manuellement peuvent être supprimées. Les annotations prêtes des entrées par défaut sont des notices de référence en russe ; les vôtres peuvent être dans n'importe quelle langue.",
+ "Аннотация слишком длинная (до 500 символов)": "L'annotation est trop longue (max. 500 caractères)"
 }

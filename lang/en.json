@@ -466,9 +466,8 @@
  "Поза по умолчанию": "Default posture",
  "Рука по умолчанию": "Default arm",
  "Аннотация": "Annotation",
- "по-русски": "in Russian",
  "справочное значение по умолчанию — удаление недоступно": "default reference entry — cannot be deleted",
- "Аннотация должна быть только по-русски": "The annotation must be in Russian only",
- "Встроенные записи справочника (по умолчанию) удалить нельзя — только править; удалять можно только добавленные вручную. Аннотация — только по-русски.": "Built-in reference entries (defaults) cannot be deleted — only edited; only manually added entries can be deleted. The annotation must be in Russian.",
- "Наведение на название лекарства показывает аннотацию из справочника.": "Hover over a medication name to see its reference annotation."
+ "Наведение на название лекарства показывает аннотацию из справочника.": "Hover over a medication name to see its reference annotation.",
+ "Встроенные записи справочника (по умолчанию) удалить нельзя — только править; удалять можно только добавленные вручную. Готовые аннотации к встроенным записям — справочные, на русском; свои аннотации — на любом языке.": "Built-in reference entries (defaults) cannot be deleted — only edited; only manually added entries can be deleted. Built-in annotations are ready-made reference texts in Russian; your own annotations can be in any language.",
+ "Аннотация слишком длинная (до 500 символов)": "The annotation is too long (max 500 characters)"
 }
