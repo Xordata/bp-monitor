@@ -220,6 +220,7 @@ canvas{max-width:100%;border:1px solid var(--bd);background:var(--canvas)}
       <div class="grid"><button class="primary" onclick="openMd()">＋ Лекарство</button></div>
       <div style="margin-top:8px"><table id="md-t"><thead><tr><th>Название</th><th>T½, ч</th><th>Действие, ч</th><th>Расписание приёма</th><th>Отметка</th><th></th></tr></thead><tbody></tbody></table></div>
       <p class="mut" style="margin:6px 0 0">T½ — период полувыведения, «Действие» — длительность действия (часы). Для известных препаратов подставлены справочные значения (medpk.json), для неизвестных — 8/12 ч; всё можно править. НН использует эти параметры: «остаточная активность» и «окно действия» каждого лекарства. «Расписание приёма» (через запятую, HH:MM) — балюн-напоминание в трее. Список нечувствителен к регистру.</p>
+      <p class="mut" style="margin:2px 0 0">Наведение на название лекарства показывает аннотацию из справочника.</p>
     </section>
     <section>
       <h3>Отметки приёма</h3>
@@ -229,8 +230,9 @@ canvas{max-width:100%;border:1px solid var(--bd);background:var(--canvas)}
     <section>
       <h3>Справочник ФК (medpk.json)</h3>
       <div class="grid"><button class="primary" onclick="openDb()">＋ В справочник</button></div>
-      <div style="margin-top:8px;max-height:280px;overflow:auto"><table id="db-t"><thead><tr><th>Название</th><th>T½, ч</th><th>Действие, ч</th><th></th></tr></thead><tbody></tbody></table></div>
+      <div style="margin-top:8px;max-height:280px;overflow:auto"><table id="db-t"><thead><tr><th>Название</th><th>T½, ч</th><th>Действие, ч</th><th>Аннотация</th><th></th></tr></thead><tbody></tbody></table></div>
       <p class="mut" style="margin:6px 0 0">Хранится в <code>medpk.json</code> рядом с программой — правится без пересборки (или редактированием файла). Используется, когда у лекарства нет персонального переопределения в таблице выше.</p>
+      <p class="mut" style="margin:2px 0 0">Встроенные записи справочника (по умолчанию) удалить нельзя — только править; удалять можно только добавленные вручную. Аннотация — только по-русски.</p>
     </section>
   </div>
 
@@ -912,7 +914,7 @@ function renderMeds(){
   document.querySelector("#md-t tbody").innerHTML=(S.cfg.Meds||[]).map((m,i)=>{
     const p=pk[m]||{half:8,dur:12};
     const ts=(times[normMd(m)]||[]).join(", ");
-    return `<tr><td>${esc(m)}${p.known?"":' <span class="mut" title="в справочнике не найдено — значения по умолчанию, отредактируйте">(? )</span>'}</td>`+
+    return `<tr><td${p.note?` title="${esc(p.note)}"`:""}>${esc(m)}${p.known?"":' <span class="mut" title="в справочнике не найдено — значения по умолчанию, отредактируйте">(? )</span>'}</td>`+
       `<td><input type="number" step="0.5" min="0.25" style="width:64px" value="${p.half}" onchange="setMdPk(${i},'HalfH',this.value)"></td>`+
       `<td><input type="number" step="1" min="0.5" style="width:64px" value="${p.dur}" onchange="setMdPk(${i},'DurH',this.value)"></td>`+
       `<td><input style="width:110px" value="${esc(ts)}" placeholder="08:00, 20:00" title="через запятую; балюн-напоминание о приёме" onchange="setMdTimes(${i},this.value)"></td>`+
@@ -936,30 +938,36 @@ async function medTake(i){const name=S.cfg.Meds[i];const j=await apiPost("/api/m
 async function delMedTake(id){if(!confirm("Удалить отметку приёма?"))return;await apiPost("/api/medtake/delete",{id});loadState();}
 /* справочник ФК (medpk.json) */
 function dbRows(){return Object.entries(S.medPkDb||{}).sort((a,b)=>a[0].localeCompare(b[0],"ru"));}
+function isBuiltinDb(k){return (S.medPkBuiltin||[]).indexOf(k)>=0;}
+function noteOk(s){s=(s||"").trim();if(!s)return true;if(s.length>300)return false;if(!/[а-яёА-ЯЁ]/.test(s))return false;return !/[A-Za-z]{2,}/.test(s);}
 function renderDb(){
   document.querySelector("#db-t tbody").innerHTML=dbRows().map(([k,v],i)=>
-    `<tr><td>${esc(k)}</td>`+
+    `<tr><td${v[2]?` title="${esc(v[2])}"`:""}>${esc(k)}</td>`+
     `<td><input type="number" step="0.5" min="0.25" style="width:64px" value="${v[0]}" onchange="dbSet(${i},0,this.value)"></td>`+
     `<td><input type="number" step="1" min="0.5" style="width:70px" value="${v[1]}" onchange="dbSet(${i},1,this.value)"></td>`+
-    `<td><button onclick="dbDel(${i})" title="убрать из справочника">✕</button></td></tr>`).join("");
+    `<td><input style="width:170px" value="${esc(v[2]||"")}" placeholder="${tr("по-русски")}" title="${tr("Аннотация")}" onchange="dbSetNote(${i},this.value)"></td>`+
+    `<td>${isBuiltinDb(k)?`<span class="mut" title="${tr("справочное значение по умолчанию — удаление недоступно")}">🔒</span>`:`<button onclick="dbDel(${i})" title="убрать из справочника">✕</button>`}</td></tr>`).join("");
 }
+function dbSetNote(i,v){const r=dbRows()[i];if(!r)return;const s=v.trim();if(!noteOk(s)){flash(tr("Аннотация должна быть только по-русски"),false);return loadState();}const a=S.medPkDb[r[0]];if(s){if(a.length>2)a[2]=s;else a.push(s);}else if(a.length>2)a.length=2;postDb();}
 function dbSet(i,f,v){const r=dbRows()[i];if(!r)return;if(!(+v>0))return loadState();S.medPkDb[r[0]][f]=+v;postDb();}
 function openDb(){
   openModal("Добавить в справочник ФК",`<div class="grid">
     <input id="db-name" style="width:180px" placeholder="МНН или бренд">
     <input id="db-half" type="number" step="0.5" min="0.25" style="width:70px" placeholder="T½ ч">
     <input id="db-dur" type="number" step="1" min="0.5" style="width:90px" placeholder="действие ч">
+    <input id="db-note" style="width:260px" placeholder="${tr("Аннотация")} (${tr("по-русски")})">
     <button class="primary" onclick="dbAdd()">Сохранить (Enter)</button>
   </div>`);
   $("mbody").onkeydown=enterSave(dbAdd);
 }
 function dbAdd(){
-  const n=normMd($("db-name").value),h=+$("db-half").value,d=+$("db-dur").value;
+  const n=normMd($("db-name").value),h=+$("db-half").value,d=+$("db-dur").value,note=$("db-note").value.trim();
   if(!n){flash("Введите название",false);return;}
   if(!(h>0)||!(d>0)){flash("Укажите T½ и длительность действия",false);return;}
-  S.medPkDb[n]=[h,d];closeModal();postDb();
+  if(!noteOk(note)){flash(tr("Аннотация должна быть только по-русски"),false);return;}
+  S.medPkDb[n]=note?[h,d,note]:[h,d];closeModal();postDb();
 }
-function dbDel(i){const r=dbRows()[i];if(!r||!confirm("Удалить «"+r[0]+"» из справочника?"))return;delete S.medPkDb[r[0]];postDb();}
+function dbDel(i){const r=dbRows()[i];if(!r||isBuiltinDb(r[0])||!confirm("Удалить «"+r[0]+"» из справочника?"))return;delete S.medPkDb[r[0]];postDb();}
 async function postDb(){const j=await apiPost("/api/medpk",{entries:S.medPkDb});flash(j.ok?("Справочник сохранён, записей: "+j.count):("Ошибка: "+(j.err||"?")),!!j.ok,5000);loadState();}
 function setMdPk(i,field,v){
   const name=S.cfg.Meds[i];

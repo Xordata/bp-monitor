@@ -464,5 +464,11 @@
  "Геокодер недоступен": "geocoder unavailable",
  "Не найдено": "not found",
  "Поза по умолчанию": "Default posture",
- "Рука по умолчанию": "Default arm"
+ "Рука по умолчанию": "Default arm",
+ "Аннотация": "Annotation",
+ "по-русски": "in Russian",
+ "справочное значение по умолчанию — удаление недоступно": "default reference entry — cannot be deleted",
+ "Аннотация должна быть только по-русски": "The annotation must be in Russian only",
+ "Встроенные записи справочника (по умолчанию) удалить нельзя — только править; удалять можно только добавленные вручную. Аннотация — только по-русски.": "Built-in reference entries (defaults) cannot be deleted — only edited; only manually added entries can be deleted. The annotation must be in Russian.",
+ "Наведение на название лекарства показывает аннотацию из справочника.": "Hover over a medication name to see its reference annotation."
 }

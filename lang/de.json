@@ -464,5 +464,11 @@
  "Геокодер недоступен": "Geokoder nicht verfügbar",
  "Не найдено": "nicht gefunden",
  "Поза по умолчанию": "Standard-Position",
- "Рука по умолчанию": "Standard-Arm"
+ "Рука по умолчанию": "Standard-Arm",
+ "Аннотация": "Anmerkung",
+ "по-русски": "auf Russisch",
+ "справочное значение по умолчанию — удаление недоступно": "Standard-Referenzeintrag — Löschen nicht möglich",
+ "Аннотация должна быть только по-русски": "Die Anmerkung muss auf Russisch sein",
+ "Встроенные записи справочника (по умолчанию) удалить нельзя — только править; удалять можно только добавленные вручную. Аннотация — только по-русски.": "Integrierte Referenzeinträge (Standard) können nicht gelöscht, nur bearbeitet werden; gelöscht werden können nur manuell hinzugefügte Einträge. Die Anmerkung ist nur auf Russisch.",
+ "Наведение на название лекарства показывает аннотацию из справочника.": "Bewegen Sie den Cursor über einen Medikamentennamen, um die Referenzanmerkung zu sehen."
 }
